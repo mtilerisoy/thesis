@@ -6,13 +6,13 @@ from vilt.utils import write_sbu
 from vilt.utils import write_vg
 from vilt.utils import write_vqa
 
-from vilt.utils import ood_itr
-from vilt.utils import ood_vqa_v2
+from vilt.utils import write_ood_itr
+from vilt.utils import write_ood_vqa
 
 # Example usage
 # write_coco_karpathy.make_arrow(root="/data-4/users/mileriso/datasets/COCO", dataset_root="/data-4/users/mileriso/datasets/COCO/arrows")
 # write_f30k_karpathy.make_arrow(root="/data-4/users/mileriso/datasets/Flickr30k", dataset_root="/data-4/users/mileriso/datasets/Flickr30k/arrows")
-write_vqa.make_arrow(root="/data-4/users/mileriso/datasets/VQAv2", dataset_root="/data-4/users/mileriso/datasets/VQAv2/arrows")
+# write_vqa.make_arrow(root="/data-4/users/mileriso/datasets/VQAv2", dataset_root="/data-4/users/mileriso/datasets/VQAv2/arrows")
 
 # write_conceptual_caption.make_arrow(root="../data/conceptual_caption", dataset_root="../data/conceptual_caption/arrows")
 # write_nlvr2.make_arrow(root="../data/NLVR2", dataset_root="../data/NLVR2/arrows")
@@ -23,4 +23,4 @@ write_vqa.make_arrow(root="/data-4/users/mileriso/datasets/VQAv2", dataset_root=
 
 # ood_itr.make_arrow(root="/data-4/users/mileriso/datasets/OOD/", json_file="/data-4/users/mileriso/datasets//OOD/itr_vlue_test.json", dataset_root="/data-4/users/mileriso/datasets/OOD/arrows")
 
-ood_vqa_v2.make_arrow(root="/data-4/users/mileriso/datasets/OOD/", json_file="/data-4/users/mileriso/datasets//OOD/vqa_vlue_test.json", dataset_root="/data-4/users/mileriso/datasets/OOD/arrows")
+write_ood_vqa.make_arrow(root="/data-4/users/mileriso/datasets/OOD/", json_file="/data-4/users/mileriso/datasets//OOD/vqa_vlue_test.json", dataset_root="/data-4/users/mileriso/datasets/OOD/arrows")

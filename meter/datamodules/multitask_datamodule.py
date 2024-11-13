@@ -17,8 +17,6 @@ class MTDataModule(LightningDataModule):
 
         self.dm_keys = datamodule_keys
         self.dm_dicts = {key: _datamodules[key](_config) for key in datamodule_keys}
-        print(f"DM DICTS: {self.dm_dicts}")
-        print(f"DM KEYS: {self.dm_dicts.keys()}")
         self.dms = [v for k, v in self.dm_dicts.items()]
 
         self.batch_size = self.dms[0].batch_size

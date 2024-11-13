@@ -6,6 +6,7 @@ import glob
 import json
 import tqdm
 import functools
+from datetime import datetime 
 
 from torch.utils.data.distributed import DistributedSampler
 from einops import rearrange
@@ -419,12 +420,6 @@ def init_weights(module):
 
 def vqa_test_step(pl_module, batch, output):
     try:
-        # id2answer = (
-        #     pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].id2answer
-        #     if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts
-        #     else pl_module.trainer.datamodule.dm_dicts["vqa"].id2answer
-        # )
-
         # Modify the id2answer definition to use the ood_vqa dataset
         id2answer = (
             pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].id2answer
@@ -445,13 +440,17 @@ def vqa_test_step(pl_module, batch, output):
         questions = batch["text"]
         qids = batch["qid"]
         return {"qids": qids, "preds": vqa_preds, "gqa": True}
+
     vqa_logits = output["vqa_logits"]
     vqa_preds = vqa_logits.argmax(dim=-1)
+
     vqa_preds = [id2answer[pred.item()] for pred in vqa_preds]
     questions = batch["text"]
-    print(f"Type of questions: {type(questions)}")
-    print(f"Questions: {questions}")
+    qid_ans = pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
     qids = batch["qid"]
+    
+    # print(f"Question vs prediction: {questions} vs {vqa_preds}")
+    # print(f"Question id and correct answer paris: {qid_ans}")
     return {"qids": qids, "preds": vqa_preds, "gqa": False}
 
 
@@ -486,7 +485,11 @@ def vqa_test_wrapup(outs, model_name):
             with open(path, "r") as fp:
                 jsons += json.load(fp)
         os.makedirs("result", exist_ok=True)
-        with open(f"result/vqa_submit_{model_name}.json", "w") as fp:
+
+        # Get the current date and time to make the name unique
+        current_time = datetime.now().strftime("%Y%m%d_%H%M")
+
+        with open(f"result/vqa_submit_{model_name}_{current_time}.json", "w") as fp:
             json.dump(jsons, fp, indent=4)
 
     torch.distributed.barrier()

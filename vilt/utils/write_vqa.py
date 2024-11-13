@@ -33,6 +33,8 @@ def path2rest(path, split, annotations, label2ans):
     _annot = list(_annot.items())
     qids, qas = [a[0] for a in _annot], [a[1] for a in _annot]
     questions = [qa[0] for qa in qas]
+
+    # Get the labels and scores for each answer
     answers = [qa[1] for qa in qas] if "test" not in split else list(list())
     answer_labels = (
         [a["labels"] for a in answers] if "test" not in split else list(list())
@@ -90,9 +92,21 @@ def make_arrow(root, dataset_root):
         for q in tqdm(annots):
             all_major_answers.append(q["multiple_choice_answer"])
 
-    all_major_answers = [normalize_word(word) for word in tqdm(all_major_answers)]
+    my_list = []
+    for word in tqdm(all_major_answers):
+        my_list.append(normalize_word(word))
+    all_major_answers = my_list
+    # all_major_answers = [normalize_word(word) for word in tqdm(all_major_answers)]
     counter = {k: v for k, v in Counter(all_major_answers).items() if v >= 9}
     ans2label = {k: i for i, k in enumerate(counter.keys())}
+    label2ans_dict = {v: k for k, v in zip(ans2label.keys(),ans2label.values())}
+
+    # Save the label and answer mappings
+    with open(f"{dataset_root}/ans2label.json", "w") as fp:
+        json.dump(ans2label, fp)
+    with open(f"{dataset_root}/label2ans.json", "w") as fp:
+        json.dump(label2ans_dict, fp)
+    
     label2ans = list(counter.keys())
 
     for split, annots in zip(
@@ -177,13 +191,13 @@ def make_arrow(root, dataset_root):
             ],
         )
 
-        # table = pa.Table.from_pandas(dataframe)
-
         # Sample 1 percent of the dataframe
-        sample_size = int(len(dataframe) * 0.01)
+        sample_size = int(len(dataframe) * 0.1)
         sampled_dataframe = dataframe.sample(n=sample_size, random_state=42)
-
+        
         table = pa.Table.from_pandas(sampled_dataframe)
+
+        # table = pa.Table.from_pandas(dataframe[:100])
 
         os.makedirs(dataset_root, exist_ok=True)
         with pa.OSFile(f"{dataset_root}/vqav2_{split}.arrow", "wb") as sink:
@@ -193,19 +207,19 @@ def make_arrow(root, dataset_root):
     # table = pa.ipc.RecordBatchFileReader(
     #     pa.memory_map(f"{dataset_root}/vqav2_val.arrow", "r")
     # ).read_all()
-
+    #
     # pdtable = table.to_pandas()
-
+    #
     # df1 = pdtable[:-1000]
     # df2 = pdtable[-1000:]
-
+    #
     # df1 = pa.Table.from_pandas(df1)
     # df2 = pa.Table.from_pandas(df2)
-
+    #
     # with pa.OSFile(f"{dataset_root}/vqav2_trainable_val.arrow", "wb") as sink:
     #     with pa.RecordBatchFileWriter(sink, df1.schema) as writer:
     #         writer.write_table(df1)
-
+    #
     # with pa.OSFile(f"{dataset_root}/vqav2_rest_val.arrow", "wb") as sink:
     #     with pa.RecordBatchFileWriter(sink, df2.schema) as writer:
     #         writer.write_table(df2)
