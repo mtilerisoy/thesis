@@ -5,3 +5,6 @@ from .conceptual_caption_dataset import ConceptualCaptionDataset
 from .sbu_caption_dataset import SBUCaptionDataset
 from .vqav2_dataset import VQAv2Dataset
 from .nlvr2_dataset import NLVR2Dataset
+from .ood_itr_dataset import OODITRDataset
+from .ood_vqav2_dataset import OODVQAv2Dataset
+from .ood_nlvr2_dataset import OODNLVR2Dataset

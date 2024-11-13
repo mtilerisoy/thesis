@@ -272,3 +272,47 @@ def vit32_base():
     hidden_size = 768
     num_heads = 12
     num_layers = 12
+
+
+# Custom named configs
+@ex.named_config
+def ood_itr():
+    exp_name = "test_ood_irtr"
+    datasets = ["ood_itr"]
+    train_transform_keys = ["pixelbert_randaug"]
+    loss_names = _loss_names({"itm": 0.5, "irtr": 1})
+    batch_size = 256
+    max_epoch = 10
+    max_steps = None
+    warmup_steps = 0.1
+    get_recall_metric = True
+    draw_false_text = 15
+    learning_rate = 1e-4
+
+@ex.named_config
+def ood_vqa():
+    exp_name = "test_ood_vqa"
+    datasets = ["ood_vqa"]
+    train_transform_keys = ["pixelbert_randaug"]
+    loss_names = _loss_names({"vqa": 1})
+    batch_size = 256
+    max_epoch = 10
+    max_steps = None
+    warmup_steps = 0.1
+    draw_false_image = 0
+    learning_rate = 1e-4
+    val_check_interval = 0.1
+    lr_mult = 10
+
+@ex.named_config
+def ood_nlvr2():
+    exp_name = "test_ood_nlvr2"
+    datasets = ["ood_nlvr2"]
+    train_transform_keys = ["pixelbert_randaug"]
+    loss_names = _loss_names({"nlvr2": 1})
+    batch_size = 128
+    max_epoch = 10
+    max_steps = None
+    warmup_steps = 0.1
+    draw_false_image = 0
+    learning_rate = 1e-4

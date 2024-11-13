@@ -96,8 +96,14 @@ def make_arrow(root, dataset_root):
         ]
 
         dataframe = pd.DataFrame(
-            bs, columns=["image_0", "image_1", "questions", "answers", "identifier"],
+            bs, columns=["image_0", "image_1", "questions", "answers", "image_id"],
         )
+
+        # # Sample 1 percent of the dataframe
+        # sample_size = int(len(dataframe) * 0.01)
+        # sampled_dataframe = dataframe.sample(n=sample_size, random_state=42)
+
+        # table = pa.Table.from_pandas(sampled_dataframe)
 
         table = pa.Table.from_pandas(dataframe)
 

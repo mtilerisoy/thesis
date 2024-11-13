@@ -576,9 +576,12 @@ def init_weights(module):
 
 
 def vqa_test_step(pl_module, batch, output):
+    # Modify the id2answer definition to use the ood_vqa dataset
     id2answer = (
         pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].id2answer
         if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts
+        else pl_module.trainer.datamodule.dm_dicts["ood_vqa"].id2answer
+        if "ood_vqa" in pl_module.trainer.datamodule.dm_dicts
         else pl_module.trainer.datamodule.dm_dicts["vqa"].id2answer
     )
     vqa_logits = output["vqa_logits"]
@@ -586,6 +589,23 @@ def vqa_test_step(pl_module, batch, output):
     vqa_preds = [id2answer[pred.item()] for pred in vqa_preds]
     questions = batch["text"]
     qids = batch["qid"]
+
+    # Save the question id and prediction pairs to a JSON file
+    import json
+    
+    # Get the question id and correct answer pairs from the datamodule
+    qid_ans = pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
+
+    # Convert the list of tuples to a list of dictionaries
+    qid_ans_dicts = [{"question_id": int(qid), "answer": ans} for qid, ans in qid_ans]
+    
+    # Save the list of dictionaries to a JSON file
+    with open("/home/mileriso/thesis/result/vqa/ViLT_original_answers.json", "w") as f:
+        json.dump(qid_ans_dicts, f, indent=4)
+    
+    # print(f"Question vs prediction: {questions} vs {vqa_preds}")
+    # print(f"Question id and correct answer paris: {qid_ans}")
+
     return {"qids": qids, "preds": vqa_preds}
 
 

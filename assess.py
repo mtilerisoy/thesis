@@ -29,8 +29,8 @@ def calculate_accuracy(predictions, original_answers):
     return accuracy
 
 if __name__ == "__main__":
-    pred_file = "result/vqa_submit_meter_vqa_20241113_1215.json"
-    ans_file = "result/vqa/original_answers.json"
+    pred_file = "result/vqa_submit_vilt_vqa.json"
+    ans_file = "result/vqa/ViLT_original_answers.json"
 
     predictions = load_predictions(pred_file)
     original_answers = load_original_answers(ans_file)

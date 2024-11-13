@@ -79,11 +79,13 @@ def make_arrow(root: str, json_file: str, dataset_root: str):
         ],
     )
 
-    # Sample 1 percent of the dataframe
-    sample_size = int(len(dataframe) * 0.1)
-    sampled_dataframe = dataframe.sample(n=sample_size, random_state=42)
+    # # Sample 1 percent of the dataframe
+    # sample_size = int(len(dataframe) * 0.1)
+    # sampled_dataframe = dataframe.sample(n=sample_size, random_state=42)
     
-    table = pa.Table.from_pandas(sampled_dataframe)
+    # table = pa.Table.from_pandas(sampled_dataframe)
+
+    table = pa.Table.from_pandas(dataframe)
 
     os.makedirs(dataset_root, exist_ok=True)
     with pa.OSFile(f"{dataset_root}/vqa_vlue_test.arrow", "wb") as sink:
