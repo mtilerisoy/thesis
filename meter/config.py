@@ -348,3 +348,25 @@ def ood_vqa():
     val_transform_keys = ["clip"]
     input_image_embed_size = 768
     image_size = 576
+
+@ex.named_config
+def ood_nlvr2():
+    exp_name = "test_ood_nlvr2"
+    datasets = ["ood_nlvr2"]
+    loss_names = _loss_names({"nlvr2": 1})
+    batch_size = 256
+    max_epoch = 10
+    max_steps = None
+    warmup_steps = 0.1
+    draw_false_image = 0
+    learning_rate = 1e-5
+    lr_mult_head = 10
+    lr_mult_cross_modal = 5
+    tokenizer = "bert-base-uncased"
+    max_text_len = 50
+    input_text_embed_size = 768
+    vit = 'ViT-B/32'
+    train_transform_keys = ["clip"]
+    val_transform_keys = ["clip"]
+    input_image_embed_size = 768
+    image_size = 288

@@ -9,6 +9,7 @@ from .snli_datamodule import SNLIDataModule
 
 from .ood_itr_datamodule import OODITRDataModule
 from .ood_vqav2_datamodule import OODVQAv2DataModule
+from .ood_nlvr2_datamodule import OODNLVR2DataModule
 
 # Mapping from dataset name to DataModule class
 # This is used in config.py to instantiate the DataModule
@@ -25,4 +26,5 @@ _datamodules = {
     # Custom OOD DataModules
     "ood_itr": OODITRDataModule,
     "ood_vqa": OODVQAv2DataModule,
+    "ood_nlvr2": OODNLVR2DataModule,
 }

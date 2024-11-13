@@ -9,3 +9,4 @@ from .snli_dataset import SNLIDataset
 
 from .ood_itr_dataset import OODITRDataset
 from .ood_vqav2_dataset import OODVQAv2Dataset
+from .ood_nlvr2_dataset import OODNLVR2Dataset

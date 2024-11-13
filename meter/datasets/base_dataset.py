@@ -64,6 +64,7 @@ class BaseDataset(torch.utils.data.Dataset):
                 self.text_column_name = text_column_name
                 self.all_texts = self.table[text_column_name].to_pandas().tolist()
                 self.all_paths = self.table["image_id"].to_pandas().tolist()
+                # self.all_paths = self.table["identifier"].to_pandas().tolist()
                 if type(self.all_texts[0][0]) == str:
                     self.all_texts = (
                         [list(set(texts)) for texts in self.all_texts]
