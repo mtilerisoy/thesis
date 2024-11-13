@@ -152,15 +152,6 @@ def compute_vqa(pl_module, batch):
     for i, (_label, _score) in enumerate(zip(vqa_labels, vqa_scores)):
         for l, s in zip(_label, _score):
             vqa_targets[i, l] = s
-    
-    # save the labels, scores, and targets to seperate files
-    with open("/home/mileriso/thesis/vqa_labels.txt", "a") as f:
-        f.write(str(vqa_labels) + "\n")
-    with open("/home/mileriso/thesis/vqa_scores.txt", "a") as f:
-        f.write(str(vqa_scores) + "\n")
-    with open("/home/mileriso/thesis/vqa_targets.txt", "a") as f:
-        f.write(str(vqa_targets) + "\n")
-
 
     vqa_loss = (
         F.binary_cross_entropy_with_logits(vqa_logits, vqa_targets)
@@ -446,8 +437,19 @@ def vqa_test_step(pl_module, batch, output):
 
     vqa_preds = [id2answer[pred.item()] for pred in vqa_preds]
     questions = batch["text"]
-    qid_ans = pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
     qids = batch["qid"]
+
+    import json
+    
+    # Get the question id and correct answer pairs from the datamodule
+    qid_ans = pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
+
+    # Convert the list of tuples to a list of dictionaries
+    qid_ans_dicts = [{"question_id": int(qid), "answer": ans} for qid, ans in qid_ans]
+    
+    # Save the list of dictionaries to a JSON file
+    with open("/home/mileriso/thesis/result/vqa/original_answers.json", "w") as f:
+        json.dump(qid_ans_dicts, f, indent=4)
     
     # print(f"Question vs prediction: {questions} vs {vqa_preds}")
     # print(f"Question id and correct answer paris: {qid_ans}")

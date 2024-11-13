@@ -29,7 +29,7 @@ class OODVQAv2DataModule(BaseDataModule):
         self.qid_ans_pairs = []
         for qid, answers in zip(qids, train_answers + val_answers):
             for answer in answers:
-                self.qid_ans_pairs.append((qid, answer))
+                self.qid_ans_pairs.append((qid[0], answer[0]))
     
         all_answers = [c for c in train_answers + val_answers if c is not None]
         all_answers = [l for lll in all_answers for ll in lll for l in ll]
