@@ -5,16 +5,18 @@ import numpy as np
 
 from transformers.models.bert.modeling_bert import BertConfig, BertEmbeddings, BertModel, BertEncoder, BertLayer
 from .bert_model import BertCrossLayer, BertAttention
-from . import swin_transformer as swin
+# from . import swin_transformer as swin
 from . import heads, objectives, meter_utils
 from .clip_model import build_model, adapt_position_encoding
-from .swin_helpers import swin_adapt_position_encoding
+# from .swin_helpers import swin_adapt_position_encoding
 from transformers import RobertaConfig, RobertaModel
 
 class METERTransformerSS(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.save_hyperparameters()
+
+        self.outs = []
 
         self.is_clip= (not 'swin' in config['vit'])
 
@@ -56,9 +58,10 @@ class METERTransformerSS(pl.LightningModule):
                 if self.is_clip:
                     build_model(config['vit'], resolution_after=resolution_after)
                 else:
-                    getattr(swin, self.hparams.config["vit"])(
-                        pretrained=True, config=self.hparams.config,
-                    )
+                    # getattr(swin, self.hparams.config["vit"])(
+                    #     pretrained=True, config=self.hparams.config,
+                    # )
+                    raise NotImplementedError("Swin Transformer is not supported in this version")
 
                 if 'roberta' in config['tokenizer']:
                     RobertaModel.from_pretrained(config['tokenizer'])
@@ -70,10 +73,11 @@ class METERTransformerSS(pl.LightningModule):
         if self.is_clip:
             self.vit_model = build_model(config['vit'], resolution_after=resolution_after)
         else:
-            self.vit_model = getattr(swin, self.hparams.config["vit"])(
-                pretrained=True, config=self.hparams.config,
-            )
-            self.avgpool = nn.AdaptiveAvgPool1d(1)
+            # self.vit_model = getattr(swin, self.hparams.config["vit"])(
+            #     pretrained=True, config=self.hparams.config,
+            # )
+            # self.avgpool = nn.AdaptiveAvgPool1d(1)
+            raise NotImplementedError("Swin Transformer is not supported in this version")
 
         if 'roberta' in config['tokenizer']:
             self.text_transformer = RobertaModel.from_pretrained(config['tokenizer'])
@@ -120,7 +124,8 @@ class METERTransformerSS(pl.LightningModule):
             if self.is_clip:
                 state_dict = adapt_position_encoding(state_dict, after=resolution_after, patch_size=self.hparams.config['patch_size'])
             else:
-                state_dict = swin_adapt_position_encoding(state_dict, after=resolution_after, before=config['resolution_before'])
+                # state_dict = swin_adapt_position_encoding(state_dict, after=resolution_after, before=config['resolution_before'])
+                raise NotImplementedError("Swin Transformer is not supported in this version")
             self.load_state_dict(state_dict, strict=False)
 
 
@@ -167,7 +172,8 @@ class METERTransformerSS(pl.LightningModule):
             if self.is_clip:
                 state_dict = adapt_position_encoding(state_dict, after=resolution_after, patch_size=self.hparams.config['patch_size'])
             else:
-                state_dict = swin_adapt_position_encoding(state_dict, after=resolution_after, before=config['resolution_before'])
+                # state_dict = swin_adapt_position_encoding(state_dict, after=resolution_after, before=config['resolution_before'])
+                raise NotImplementedError("Swin Transformer is not supported in this version")
             self.load_state_dict(state_dict, strict=False)
 
     def infer(
@@ -298,13 +304,15 @@ class METERTransformerSS(pl.LightningModule):
         if self.hparams.config["loss_names"]["vqa"] > 0:
             ret.update(objectives.vqa_test_step(self, batch, output))
 
+        self.outs.append(ret)
+
         return ret
 
-    def test_epoch_end(self, outs):
+    def on_test_epoch_end(self):
         model_name = self.hparams.config["load_path"].split("/")[-1][:-5]
 
         if self.hparams.config["loss_names"]["vqa"] > 0:
-            objectives.vqa_test_wrapup(outs, model_name)
+            objectives.vqa_test_wrapup(self.outs, model_name)
         meter_utils.epoch_wrapup(self)
 
     def configure_optimizers(self):

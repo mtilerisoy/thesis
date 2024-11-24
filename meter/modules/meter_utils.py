@@ -102,6 +102,15 @@ def epoch_wrapup(pl_module):
                 )
                 getattr(pl_module, f"train_{loss_name}_loss").reset()
             else:
+                value = getattr(pl_module, f"dev_{loss_name}_accuracy").compute()
+                pl_module.log(f"{loss_name}/dev/accuracy_epoch", value)
+                getattr(pl_module, f"dev_{loss_name}_accuracy").reset()
+                pl_module.log(
+                    f"{loss_name}/dev/loss_epoch",
+                    getattr(pl_module, f"dev_{loss_name}_loss").compute(),
+                )
+                
+                getattr(pl_module, f"dev_{loss_name}_loss").reset()
                 value = getattr(pl_module, f"test_{loss_name}_accuracy").compute()
                 pl_module.log(f"{loss_name}/test/accuracy_epoch", value)
                 getattr(pl_module, f"test_{loss_name}_accuracy").reset()
@@ -111,14 +120,6 @@ def epoch_wrapup(pl_module):
                 )
                 getattr(pl_module, f"test_{loss_name}_loss").reset()
 
-                value = getattr(pl_module, f"dev_{loss_name}_accuracy").compute()
-                pl_module.log(f"{loss_name}/dev/accuracy_epoch", value)
-                getattr(pl_module, f"dev_{loss_name}_accuracy").reset()
-                pl_module.log(
-                    f"{loss_name}/dev/loss_epoch",
-                    getattr(pl_module, f"dev_{loss_name}_loss").compute(),
-                )
-                getattr(pl_module, f"dev_{loss_name}_loss").reset()
         elif loss_name == "irtr":
             pl_module.log(
                 f"{loss_name}/{phase}/irtr_loss_epoch",

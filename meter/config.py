@@ -27,6 +27,7 @@ def config():
     datasets = ["coco", "vg", "sbu", "gcc"]
     loss_names = _loss_names({"itm": 1, "mlm": 1})
     batch_size = 4096  # this is a desired batch size; pl trainer will accumulate gradients when per step batch is smaller.
+    accelerator = "gpu"
 
     # Image setting
     train_transform_keys = ["clip"]
@@ -121,7 +122,7 @@ def task_finetune_nlvr2_clip_bert():
     loss_names = _loss_names({"nlvr2": 1})
     batch_size = 256
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 1e-5
@@ -143,7 +144,7 @@ def task_finetune_vqa_clip_bert():
     loss_names = _loss_names({"vqa": 1})
     batch_size = 512
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 5e-6
@@ -166,7 +167,7 @@ def task_finetune_irtr_coco_clip_bert():
     loss_names = _loss_names({"itm": 0.5, "irtr": 1})
     batch_size = 512
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     get_recall_metric = True
     draw_false_text = 15
@@ -188,7 +189,7 @@ def task_finetune_irtr_f30k_clip_bert():
     loss_names = _loss_names({"itm": 0.5, "irtr": 1})
     batch_size = 512
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     get_recall_metric = True
     draw_false_text = 15
@@ -210,7 +211,7 @@ def task_finetune_snli_clip_bert():
     loss_names = _loss_names({"snli": 1})
     batch_size = 64
     max_epoch = 5
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 2e-6
@@ -311,7 +312,7 @@ def ood_itr():
     loss_names = _loss_names({"itm": 0.5, "irtr": 1})
     batch_size = 512
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     get_recall_metric = True
     draw_false_text = 15
@@ -333,7 +334,7 @@ def ood_vqa():
     loss_names = _loss_names({"vqa": 1})
     batch_size = 512
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 5e-6
@@ -356,7 +357,7 @@ def ood_nlvr2():
     loss_names = _loss_names({"nlvr2": 1})
     batch_size = 256
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 1e-5
