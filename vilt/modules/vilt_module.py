@@ -12,6 +12,8 @@ class ViLTransformerSS(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
+        self.outputs = []
+
         bert_config = BertConfig(
             vocab_size=config["vocab_size"],
             hidden_size=config["hidden_size"],
@@ -239,14 +241,16 @@ class ViLTransformerSS(pl.LightningModule):
 
         if self.hparams.config["loss_names"]["vqa"] > 0:
             ret.update(objectives.vqa_test_step(self, batch, output))
+        
+        self.outputs.append(ret)
 
         return ret
 
-    def on_test_epoch_end(self, outs):
+    def on_test_epoch_end(self):
         model_name = self.hparams.config["load_path"].split("/")[-1][:-5]
 
         if self.hparams.config["loss_names"]["vqa"] > 0:
-            objectives.vqa_test_wrapup(outs, model_name)
+            objectives.vqa_test_wrapup(self.outputs, model_name)
         vilt_utils.epoch_wrapup(self)
 
     def configure_optimizers(self):

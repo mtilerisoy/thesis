@@ -284,7 +284,7 @@ def ood_itr():
     loss_names = _loss_names({"itm": 0.5, "irtr": 1})
     batch_size = 256
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     get_recall_metric = True
     draw_false_text = 15
@@ -298,7 +298,7 @@ def ood_vqa():
     loss_names = _loss_names({"vqa": 1})
     batch_size = 256
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 1e-4
@@ -313,7 +313,7 @@ def ood_nlvr2():
     loss_names = _loss_names({"nlvr2": 1})
     batch_size = 128
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 1e-4
