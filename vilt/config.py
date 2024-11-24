@@ -23,6 +23,7 @@ def config():
     datasets = ["coco", "vg", "sbu", "gcc"]
     loss_names = _loss_names({"itm": 1, "mlm": 1})
     batch_size = 4096  # this is a desired batch size; pl trainer will accumulate gradients when per step batch is smaller.
+    accelerator = "gpu"
 
     # Image setting
     train_transform_keys = ["pixelbert"]
@@ -129,7 +130,7 @@ def task_finetune_nlvr2():
     loss_names = _loss_names({"nlvr2": 1})
     batch_size = 128
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 1e-4
@@ -143,7 +144,7 @@ def task_finetune_nlvr2_randaug():
     loss_names = _loss_names({"nlvr2": 1})
     batch_size = 128
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 1e-4
@@ -156,7 +157,7 @@ def task_finetune_vqa():
     loss_names = _loss_names({"vqa": 1})
     batch_size = 256
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 1e-4
@@ -172,7 +173,7 @@ def task_finetune_vqa_randaug():
     loss_names = _loss_names({"vqa": 1})
     batch_size = 256
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     draw_false_image = 0
     learning_rate = 1e-4
@@ -187,7 +188,7 @@ def task_finetune_irtr_coco():
     loss_names = _loss_names({"itm": 0.5, "irtr": 1})
     batch_size = 256
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     get_recall_metric = True
     draw_false_text = 15
@@ -202,7 +203,7 @@ def task_finetune_irtr_coco_randaug():
     loss_names = _loss_names({"itm": 0.5, "irtr": 1})
     batch_size = 256
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     get_recall_metric = True
     draw_false_text = 15
@@ -216,7 +217,7 @@ def task_finetune_irtr_f30k():
     loss_names = _loss_names({"itm": 0.5, "irtr": 1})
     batch_size = 256
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     get_recall_metric = True
     draw_false_text = 15
@@ -231,7 +232,7 @@ def task_finetune_irtr_f30k_randaug():
     loss_names = _loss_names({"itm": 0.5, "irtr": 1})
     batch_size = 256
     max_epoch = 10
-    max_steps = None
+    max_steps = 1
     warmup_steps = 0.1
     get_recall_metric = True
     draw_false_text = 15

@@ -593,7 +593,7 @@ class VisionTransformer(nn.Module):
             )[None, None, :, :, :]
             .expand(x_mask.shape[0], x_mask.shape[1], -1, -1, -1)
             .flatten(1, 3)
-        )
+        ).to(self.cls_token.device)
         x_mask = x_mask.flatten(1)
 
         if mask_it:

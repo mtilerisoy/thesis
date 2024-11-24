@@ -242,7 +242,7 @@ class ViLTransformerSS(pl.LightningModule):
 
         return ret
 
-    def test_epoch_end(self, outs):
+    def on_test_epoch_end(self, outs):
         model_name = self.hparams.config["load_path"].split("/")[-1][:-5]
 
         if self.hparams.config["loss_names"]["vqa"] > 0:
