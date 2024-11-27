@@ -1,6 +1,8 @@
 # Project Specific
 result/
 .idea/
+xignore/*
+lightning_logs/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
