@@ -34,6 +34,7 @@ class Accuracy():
         return self.correct / self.total
 
 def compute_nlvr2(pl_module, batch):
+    
     infer1 = pl_module.infer(
         batch, mask_text=False, mask_image=False, image_token_type_idx=1
     )
@@ -46,6 +47,8 @@ def compute_nlvr2(pl_module, batch):
 
     nlvr2_labels = batch["answers"]
     nlvr2_labels = torch.tensor(nlvr2_labels).to(pl_module.device).long()
+    nlvr2_logits = pl_module.dequant(nlvr2_logits)
+    # nlvr2_labels = pl_module.dequant(nlvr2_labels)
     nlvr2_loss = F.cross_entropy(nlvr2_logits, nlvr2_labels)
 
     accuracy = Accuracy(pl_module.device)
@@ -67,7 +70,6 @@ class ViLTransformerSS(nn.Module):
         super().__init__()
 
         self.outputs = []
-        self.quantized = quantized
         self.config = config
         self.device = device
 
@@ -128,7 +130,10 @@ class ViLTransformerSS(nn.Module):
             ckpt = torch.load(config.load_path, map_location="cpu")
             state_dict = ckpt["state_dict"]
             self.load_state_dict(state_dict, strict=False)
-
+        
+        self.quant = torch.ao.quantization.QuantStub()
+        self.dequant = torch.ao.quantization.DeQuantStub()
+        
     def infer(
         self,
         batch,
@@ -147,6 +152,10 @@ class ViLTransformerSS(nn.Module):
         text_ids = batch[f"text_ids{do_mlm}"]
         text_labels = batch[f"text_labels{do_mlm}"]
         text_masks = batch[f"text_masks"]
+
+        # text_ids = self.quant(text_ids)
+        # text_masks = self.quant(text_masks)
+
         text_embeds = self.text_embeddings(text_ids)
 
         if image_embeds is None and image_masks is None:
@@ -168,7 +177,7 @@ class ViLTransformerSS(nn.Module):
             )
 
         text_embeds, image_embeds = (
-            text_embeds + self.token_type_embeddings(torch.zeros_like(text_masks)),
+            self.dequant(text_embeds) + self.token_type_embeddings(torch.zeros_like(text_masks)),
             image_embeds
             + self.token_type_embeddings(
                 torch.full_like(image_masks, image_token_type_idx)
@@ -183,12 +192,15 @@ class ViLTransformerSS(nn.Module):
         for i, blk in enumerate(self.transformer.blocks):
             x, _attn = blk(x, mask=co_masks)
 
+        x = self.quant(x)
         x = self.transformer.norm(x)
         text_feats, image_feats = (
             x[:, : text_embeds.shape[1]],
             x[:, text_embeds.shape[1] :],
         )
         cls_feats = self.pooler(x)
+
+        # cls_feats = self.dequant(cls_feats)
 
         ret = {
             "text_feats": text_feats,

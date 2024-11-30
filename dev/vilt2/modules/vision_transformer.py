@@ -306,13 +306,18 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
+        self.quant = torch.ao.quantization.QuantStub()
+        self.dequant = torch.ao.quantization.DeQuantStub()
+
     def forward(self, x, mask=None):
         B, N, C = x.shape
+        x = self.quant(x)
         qkv = (
             self.qkv(x)
             .reshape(B, N, 3, self.num_heads, C // self.num_heads)
             .permute(2, 0, 3, 1, 4)
         )
+        qkv = self.dequant(qkv)
         q, k, v = (
             qkv[0],
             qkv[1],
@@ -327,7 +332,9 @@ class Attention(nn.Module):
         attn = self.attn_drop(attn)
 
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = self.quant(x)
         x = self.proj(x)
+        x = self.dequant(x)
         x = self.proj_drop(x)
         return x, attn
 
@@ -367,10 +374,15 @@ class Block(nn.Module):
             drop=drop,
         )
 
+        self.quant = torch.ao.quantization.QuantStub()
+        self.dequant = torch.ao.quantization.DeQuantStub()
+
     def forward(self, x, mask=None):
-        _x, attn = self.attn(self.norm1(x), mask=mask)
+        _x, attn = self.attn(self.dequant(self.norm1(self.quant(x))), mask=mask)
         x = x + self.drop_path(_x)
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
+        x = x + self.drop_path(self.dequant(self.mlp(self.norm2(self.quant(x)))))
+        # x = self.dequant(x)
+        # attn = self.dequant(attn)
         return x, attn
 
 
@@ -384,6 +396,7 @@ class PatchEmbed(nn.Module):
         in_chans=3,
         embed_dim=768,
         no_patch_embed_bias=False,
+
     ):
         super().__init__()
         img_size = to_2tuple(img_size)
@@ -401,10 +414,15 @@ class PatchEmbed(nn.Module):
             bias=False if no_patch_embed_bias else True,
         )
 
+        self.quant = torch.ao.quantization.QuantStub()
+        self.dequant = torch.ao.quantization.DeQuantStub()
+
     def forward(self, x):
         B, C, H, W = x.shape
         # FIXME look at relaxing size constraints
+        x = self.quant(x)
         x = self.proj(x)
+        x = self.dequant(x)
         return x
 
 
@@ -555,7 +573,7 @@ class VisionTransformer(nn.Module):
         return feats, labels
 
     def visual_embed(self, _x, max_image_len=200, mask_it=False):
-        _, _, ph, pw = self.patch_embed.proj.weight.shape
+        # _, _, ph, pw = self.patch_embed.proj.weight.shape
 
         x = self.patch_embed(_x)
         x_mask = (_x.sum(dim=1) != 0).float()[:, None, :, :]
