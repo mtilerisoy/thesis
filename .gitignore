@@ -3,6 +3,9 @@ result/
 .idea/
 xignore/*
 lightning_logs/*
+old-versions/*
+*.yaml
+events*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
