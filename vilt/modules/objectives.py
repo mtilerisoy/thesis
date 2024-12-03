@@ -301,6 +301,9 @@ def compute_imgcls(pl_module, batch):
 def compute_vqa(pl_module, batch):
     infer = pl_module.infer(batch, mask_text=False, mask_image=False)
     vqa_logits = pl_module.vqa_classifier(infer["cls_feats"])
+
+    vqa_logits = pl_module.dequant(vqa_logits)
+
     vqa_targets = torch.zeros(
         len(vqa_logits), pl_module.hparams.config["vqav2_label_size"]
     ).to(pl_module.device)
@@ -349,6 +352,9 @@ def compute_nlvr2(pl_module, batch):
 
     nlvr2_labels = batch["answers"]
     nlvr2_labels = torch.tensor(nlvr2_labels).to(pl_module.device).long()
+    
+    nlvr2_logits = pl_module.dequant(nlvr2_logits)
+    
     nlvr2_loss = F.cross_entropy(nlvr2_logits, nlvr2_labels)
 
     ret = {
@@ -585,6 +591,7 @@ def vqa_test_step(pl_module, batch, output):
         else pl_module.trainer.datamodule.dm_dicts["vqa"].id2answer
     )
     vqa_logits = output["vqa_logits"]
+    vqa_logits = pl_module.dequant(vqa_logits)
     vqa_preds = vqa_logits.argmax(dim=-1)
     vqa_preds = [id2answer[pred.item()] for pred in vqa_preds]
     questions = batch["text"]

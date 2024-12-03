@@ -108,6 +108,10 @@ class ViLTransformerSS(pl.LightningModule):
             ckpt = torch.load(self.hparams.config["load_path"], map_location="cpu")
             state_dict = ckpt["state_dict"]
             self.load_state_dict(state_dict, strict=False)
+        
+        # Define quantization and dequantization stubs
+        self.quant = torch.ao.quantization.QuantStub()
+        self.dequant = torch.ao.quantization.DeQuantStub()
 
     def infer(
         self,
@@ -146,6 +150,8 @@ class ViLTransformerSS(pl.LightningModule):
                 None,
                 None,
             )
+        
+        text_embeds = self.dequant(text_embeds)
 
         text_embeds, image_embeds = (
             text_embeds + self.token_type_embeddings(torch.zeros_like(text_masks)),
@@ -163,6 +169,7 @@ class ViLTransformerSS(pl.LightningModule):
         for i, blk in enumerate(self.transformer.blocks):
             x, _attn = blk(x, mask=co_masks)
 
+        x = self.quant(x)
         x = self.transformer.norm(x)
         text_feats, image_feats = (
             x[:, : text_embeds.shape[1]],
