@@ -6,6 +6,7 @@ lightning_logs/*
 old-versions/*
 *.yaml
 events*
+dev/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
