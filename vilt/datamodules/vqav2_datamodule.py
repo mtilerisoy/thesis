@@ -23,6 +23,14 @@ class VQAv2DataModule(BaseDataModule):
         train_labels = self.train_dataset.table["answer_labels"].to_pandas().tolist()
         val_labels = self.val_dataset.table["answer_labels"].to_pandas().tolist()
 
+        # Needed to save the question id and answer pair for evaluation
+        qids = self.train_dataset.table["question_id"].to_pandas().tolist() + self.val_dataset.table["question_id"].to_pandas().tolist()
+
+        self.qid_ans_pairs = []
+        for qid, answers in zip(qids, train_answers + val_answers):
+            for answer in answers:
+                self.qid_ans_pairs.append((qid[0], answer[0]))
+
         all_answers = [c for c in train_answers + val_answers if c is not None]
         all_answers = [l for lll in all_answers for ll in lll for l in ll]
         all_labels = [c for c in train_labels + val_labels if c is not None]

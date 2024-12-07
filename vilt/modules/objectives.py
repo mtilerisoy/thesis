@@ -594,7 +594,13 @@ def vqa_test_step(pl_module, batch, output):
     import json
     
     # Get the question id and correct answer pairs from the datamodule
-    qid_ans = pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
+    qid_ans = (
+        pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].qid_ans_pairs
+        if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts
+        else pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
+        if "ood_vqa" in pl_module.trainer.datamodule.dm_dicts
+        else pl_module.trainer.datamodule.dm_dicts["vqa"].qid_ans_pairs
+    )
 
     # Convert the list of tuples to a list of dictionaries
     qid_ans_dicts = [{"question_id": int(qid), "answer": ans} for qid, ans in qid_ans]
