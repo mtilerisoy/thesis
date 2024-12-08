@@ -1,4 +1,5 @@
 import json
+import argparse
 
 def load_predictions(pred_file):
     with open(pred_file, 'r') as f:
@@ -15,9 +16,6 @@ def calculate_accuracy(predictions, original_answers):
     total = 0
 
     for pred in predictions:
-        # if pred["answer"] == "Unknown Answer":
-        #     continue
-
         qid = pred["question_id"]
         original_answer = next((item["answer"] for item in original_answers if item["question_id"] == qid), None)
 
@@ -25,12 +23,22 @@ def calculate_accuracy(predictions, original_answers):
             correct += 1
         total += 1
 
+    print(f"Correct: {correct}, Total: {total}")
     accuracy = correct / total if total > 0 else 0
     return accuracy
 
 if __name__ == "__main__":
-    pred_file = "result/vqa_submit_vilt_vqa.json"
-    ans_file = "result/vqa/ViLT_original_answers.json"
+    parser = argparse.ArgumentParser(description="Evaluate VQA predictions.")
+    # parser.add_argument('--pred_file', nargs='?', type=str, default='ViLT_original_predictions.json', help='Path to the predictions file')
+    # parser.add_argument('--ans_file', nargs='?', type=str, default='ViLT_original_answers.json', help='Path to the original answers file')
+    
+    parser.add_argument('pred_file', type=str, default='ViLT_original_predictions.json', help='Path to the predictions file')
+    parser.add_argument('ans_file', type=str, default='ViLT_original_answers.json', help='Path to the original answers file')
+
+    args = parser.parse_args()
+
+    pred_file = "result/vqa/" + args.pred_file
+    ans_file = "result/vqa/" + args.ans_file
 
     predictions = load_predictions(pred_file)
     original_answers = load_original_answers(ans_file)
