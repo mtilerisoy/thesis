@@ -23,11 +23,10 @@ def quantize_model_dynamic(model, precision):
 
         embedding_qconfig = QConfig(
             activation=PlaceholderObserver,
-            weight=MinMaxObserver.with_args(
+            weight=PerChannelMinMaxObserver.with_args(
                                                 dtype=torch.quint8,
                                                 qscheme=torch.per_channel_affine_float_qparams,
                                                 ch_axis=0,
-                                                # qscheme=torch.per_tensor_symmetric,
                                                 quant_min=0,
                                                 quant_max=255,
                                             ),
