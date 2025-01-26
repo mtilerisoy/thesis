@@ -555,7 +555,7 @@ class VisionTransformer(nn.Module):
         return feats, labels
 
     def visual_embed(self, _x, max_image_len=200, mask_it=False):
-        _, _, ph, pw = self.patch_embed.proj.weight.shape
+        # _, _, ph, pw = self.patch_embed.proj.weight.shape
 
         x = self.patch_embed(_x)
         x_mask = (_x.sum(dim=1) != 0).float()[:, None, :, :]
