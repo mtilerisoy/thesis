@@ -12,6 +12,7 @@ from einops import rearrange
 
 from vilt.modules.dist_utils import all_gather
 
+from datetime import datetime
 
 def cost_matrix_cosine(x, y, eps=1e-5):
     """Compute cosine distnace across every pairs of x, y (batched)
@@ -641,7 +642,11 @@ def vqa_test_wrapup(outs, model_name):
             with open(path, "r") as fp:
                 jsons += json.load(fp)
         os.makedirs("result", exist_ok=True)
-        with open(f"result/vqa_submit_{model_name}.json", "w") as fp:
+
+        # Get the current date and time to make the name unique
+        current_time = datetime.now().strftime("%Y%m%d_%H%M")
+
+        with open(f"result/vqa_submit_{model_name}_{current_time}.json", "w") as fp:
             json.dump(jsons, fp, indent=4)
 
     torch.distributed.barrier()
