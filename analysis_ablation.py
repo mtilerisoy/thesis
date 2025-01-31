@@ -1,11 +1,15 @@
 import os
 # Limit the number of CPUs
-os.environ["OMP_NUM_THREADS"] = "8"  # Set this to the number of CPUs you want to use
-os.environ["MKL_NUM_THREADS"] = "8"  # Set this to the number of CPUs you want to use
+os.environ["OMP_NUM_THREADS"] = "5"  # Set this to the number of CPUs you want to use
+os.environ["MKL_NUM_THREADS"] = "5"  # Set this to the number of CPUs you want to use
 
 from sensitivity_utils import init_trainer, get_quantization_config, print_size_of_model
 import torch
 from datetime import datetime
+from copy import deepcopy
+
+from torch.quantization import PlaceholderObserver, MinMaxObserver, QConfig, PerChannelMinMaxObserver
+
     
 import argparse
 if __name__ == '__main__':
@@ -67,29 +71,60 @@ if __name__ == '__main__':
     # Quantize the model
     # layer_to_quantize = args.layer2quantize
 
-    for i in range(9):
-        i += 4
+    for i in range(12):
         print(f"Block {i}")
 
-        layer_to_quantize = "transformer.blocks." + str(i)
+        layer_to_quantize = "transformer.blocks." + str(i) + ".attn"
 
         # Check if the layer to quantize is in the model
         assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
 
         if "embeddings" in layer_to_quantize:
             quantization_config = embedding_layer_qconfig
+
+        model_dynamic = deepcopy(model)
         
         torch.quantization.quantize_dynamic(
-            model, {layer_to_quantize: quantization_config}, inplace=True
+            model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
         )
 
         # Accuracy Testing
-        trainer.test(model, datamodule=dm)
+        trainer.test(model_dynamic, datamodule=dm)
 
         print(f"Model Used: {args.model}")
         print(f"Task Used: {args.task}")
-        print_size_of_model(model)
+        print_size_of_model(model_dynamic)
         print(f"Precision: {args.precision}")
         print(f"Quantized Block: {layer_to_quantize}")
         print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
+        print(".attn sub-module is quantized")
+        print("===================================")
+
+
+
+        layer_to_quantize = "transformer.blocks." + str(i) + ".mlp"
+
+        # Check if the layer to quantize is in the model
+        assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
+
+        if "embeddings" in layer_to_quantize:
+            quantization_config = embedding_layer_qconfig
+
+        model_dynamic = deepcopy(model)
+        
+        torch.quantization.quantize_dynamic(
+            model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
+        )
+
+        # Accuracy Testing
+        trainer.test(model_dynamic, datamodule=dm)
+
+        print(f"Model Used: {args.model}")
+        print(f"Task Used: {args.task}")
+        print_size_of_model(model_dynamic)
+        print(f"Precision: {args.precision}")
+        print(f"Quantized Block: {layer_to_quantize}")
+        print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
+        print(".mlp sub-module is quantized")
+        print("===================================")
 
