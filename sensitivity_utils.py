@@ -1,3 +1,5 @@
+import random
+random.seed(42)
 from torch.utils.data import Subset
 from vilt.datamodules.multitask_datamodule import MTDataModule as MTDataModuleVILT
 from meter.datamodules.multitask_datamodule import MTDataModule as MTDataModuleMeter
@@ -8,13 +10,22 @@ class SmallMTDataModuleVILT(MTDataModuleVILT):
         self.num_samples = num_samples
         self.start_idx = start_idx
 
-    def setup(self, stage):
+    def setup(self, stage, is_random):
         super().setup(stage)
         
         # Limit the number of samples in the datasets
-        self.train_dataset = Subset(self.train_dataset, range(self.start_idx, self.start_idx+self.num_samples))
-        self.val_dataset = Subset(self.val_dataset, range(self.start_idx, self.start_idx+self.num_samples))
-        self.test_dataset = Subset(self.test_dataset, range(self.start_idx, self.start_idx+self.num_samples))
+        if is_random:
+            self.train_dataset = self._get_random_subset(self.train_dataset, self.num_samples)
+            self.val_dataset = self._get_random_subset(self.val_dataset, self.num_samples)
+            self.test_dataset = self._get_random_subset(self.test_dataset, self.num_samples)
+        else:    
+            self.train_dataset = Subset(self.train_dataset, range(self.start_idx, self.start_idx+self.num_samples))
+            self.val_dataset = Subset(self.val_dataset, range(self.start_idx, self.start_idx+self.num_samples))
+            self.test_dataset = Subset(self.test_dataset, range(self.start_idx, self.start_idx+self.num_samples))
+        
+    def _get_random_subset(self, dataset, num_samples):
+        indices = random.sample(range(len(dataset)), num_samples)
+        return Subset(dataset, indices)
 
 class SmallMTDataModuleMETER(MTDataModuleMeter):
     def __init__(self, _config, dist=False, num_samples=10, start_idx=100):
@@ -22,13 +33,23 @@ class SmallMTDataModuleMETER(MTDataModuleMeter):
         self.num_samples = num_samples
         self.start_idx = start_idx
 
-    def setup(self, stage):
+    def setup(self, stage, is_random):
         super().setup(stage)
         
         # Limit the number of samples in the datasets
-        self.train_dataset = Subset(self.train_dataset, range(self.start_idx, self.start_idx+self.num_samples))
-        self.val_dataset = Subset(self.val_dataset, range(self.start_idx, self.start_idx+self.num_samples))
-        self.test_dataset = Subset(self.test_dataset, range(self.start_idx, self.start_idx+self.num_samples))
+        if is_random:
+            self.train_dataset = self._get_random_subset(self.train_dataset, self.num_samples)
+            self.val_dataset = self._get_random_subset(self.val_dataset, self.num_samples)
+            self.test_dataset = self._get_random_subset(self.test_dataset, self.num_samples)
+        else:    
+            self.train_dataset = Subset(self.train_dataset, range(self.start_idx, self.start_idx+self.num_samples))
+            self.val_dataset = Subset(self.val_dataset, range(self.start_idx, self.start_idx+self.num_samples))
+            self.test_dataset = Subset(self.test_dataset, range(self.start_idx, self.start_idx+self.num_samples))
+        
+    
+    def _get_random_subset(self, dataset, num_samples):
+        indices = random.sample(range(len(dataset)), num_samples)
+        return Subset(dataset, indices)
 
 def print_size_of_model(model):
     """
@@ -240,3 +261,32 @@ def get_quantization_config(precision):
         raise ValueError("Precision not supported")
 
     return quantization_config, embedding_layer_qconfig
+
+
+
+########################################
+# Get weight only dynamic quantization
+#
+# Using 4-bit precision
+########################################
+
+# quantization_config = QConfig(
+    #     activation=torch.nn.Identity,
+    #     weight=MinMaxObserver.with_args(
+    #                                     dtype=torch.qint8,
+    #                                     qscheme=torch.per_tensor_symmetric,
+    #                                     quant_min=-8,
+    #                                     quant_max=7,
+    #                                 ),
+    # )
+
+    # embedding_layer_qconfig = QConfig(
+    #     activation=torch.nn.Identity,
+    #     weight=PerChannelMinMaxObserver.with_args(
+    #                                         dtype=torch.quint8,
+    #                                         qscheme=torch.per_channel_affine_float_qparams,
+    #                                         ch_axis=0,
+    #                                         quant_min=0,
+    #                                         quant_max=15,
+    #                                     ),
+    # )
