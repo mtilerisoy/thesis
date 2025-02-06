@@ -224,14 +224,14 @@ class ViLTransformerSS(pl.LightningModule):
 
         return total_loss
 
-    def training_epoch_end(self, outs):
+    def on_train_epoch_end(self, outs):
         vilt_utils.epoch_wrapup(self)
 
     def validation_step(self, batch, batch_idx):
         vilt_utils.set_task(self)
         output = self(batch)
 
-    def validation_epoch_end(self, outs):
+    def on_validation_epoch_end(self, outs):
         vilt_utils.epoch_wrapup(self)
 
     def test_step(self, batch, batch_idx):
