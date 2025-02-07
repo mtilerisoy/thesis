@@ -331,6 +331,32 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
         return x, attn
 
+    def modified_forward(self, x, mask=None):
+        B, N, C = x.shape
+        qkv = (
+            self.qkv(x)
+            .reshape(B, N, 3, self.num_heads, C // self.num_heads)
+            .permute(2, 0, 3, 1, 4)
+        )
+        q, k, v = (
+            qkv[0],
+            qkv[1],
+            qkv[2],
+        )  # make torchscript happy (cannot use tensor as tuple)
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        if mask is not None:
+            mask = mask.bool()
+            attn = attn.masked_fill(~mask[:, None, None, :], float("-inf"))
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x_attn_v = x
+        proj_output = self.proj(x)  # Save proj output
+        x = self.proj_drop(proj_output)
+        return x, attn, qkv, proj_output  # Return intermediate outputs
+
 
 class Block(nn.Module):
     def __init__(
