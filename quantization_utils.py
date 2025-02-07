@@ -10,7 +10,7 @@ class SmallMTDataModuleVILT(MTDataModuleVILT):
         self.num_samples = num_samples
         self.start_idx = start_idx
 
-    def setup(self, stage, is_random):
+    def setup(self, stage, is_random=False):
         super().setup(stage)
         
         # Limit the number of samples in the datasets
@@ -23,32 +23,39 @@ class SmallMTDataModuleVILT(MTDataModuleVILT):
             self.val_dataset = Subset(self.val_dataset, range(self.start_idx, self.start_idx+self.num_samples))
             self.test_dataset = Subset(self.test_dataset, range(self.start_idx, self.start_idx+self.num_samples))
         
-    def _get_random_subset(self, dataset, num_samples):
-        indices = random.sample(range(len(dataset)), num_samples)
+    def _get_random_subset(self, dataset, num_samples, percentage):
+        if percentage:
+            indices = random.sample(range(len(dataset)), int(len(dataset)*percentage))
+        else:
+            indices = random.sample(range(len(dataset)), num_samples)
         return Subset(dataset, indices)
 
 class SmallMTDataModuleMETER(MTDataModuleMeter):
-    def __init__(self, _config, dist=False, num_samples=10, start_idx=100):
+    def __init__(self, _config, dist=False, num_samples=10, start_idx=100, percentage=None):
         super().__init__(_config, dist)
         self.num_samples = num_samples
         self.start_idx = start_idx
+        self.percentage = percentage
 
-    def setup(self, stage, is_random):
+    def setup(self, stage, is_random=False):
         super().setup(stage)
         
         # Limit the number of samples in the datasets
         if is_random:
-            self.train_dataset = self._get_random_subset(self.train_dataset, self.num_samples)
-            self.val_dataset = self._get_random_subset(self.val_dataset, self.num_samples)
-            self.test_dataset = self._get_random_subset(self.test_dataset, self.num_samples)
+            self.train_dataset = self._get_random_subset(self.train_dataset, self.num_samples, self.percentage)
+            self.val_dataset = self._get_random_subset(self.val_dataset, self.num_samples, self.percentage)
+            self.test_dataset = self._get_random_subset(self.test_dataset, self.num_samples, self.percentage)
         else:    
             self.train_dataset = Subset(self.train_dataset, range(self.start_idx, self.start_idx+self.num_samples))
             self.val_dataset = Subset(self.val_dataset, range(self.start_idx, self.start_idx+self.num_samples))
             self.test_dataset = Subset(self.test_dataset, range(self.start_idx, self.start_idx+self.num_samples))
         
     
-    def _get_random_subset(self, dataset, num_samples):
-        indices = random.sample(range(len(dataset)), num_samples)
+    def _get_random_subset(self, dataset, num_samples, percentage):
+        if percentage:
+            indices = random.sample(range(len(dataset)), int(len(dataset)*percentage))
+        else:
+            indices = random.sample(range(len(dataset)), num_samples)
         return Subset(dataset, indices)
 
 def print_size_of_model(model):
@@ -119,7 +126,7 @@ def init_trainer(_config):
     max_steps = _config["max_steps"] if _config["max_steps"] is not None else None
 
     trainer = pl.Trainer(
-        accelerator="cpu",
+        accelerator="gpu",
         devices=_config["num_gpus"],
         num_nodes=_config["num_nodes"],
         precision=_config["precision"],
@@ -263,30 +270,71 @@ def get_quantization_config(precision):
     return quantization_config, embedding_layer_qconfig
 
 
+from torch.quantization import FakeQuantize, MovingAverageMinMaxObserver
+def get_qat_config(precision):
 
-########################################
-# Get weight only dynamic quantization
-#
-# Using 4-bit precision
-########################################
+    if precision == 8:
+        quantization_config = QConfig(
+            activation=FakeQuantize.with_args(
+                                        observer=MovingAverageMinMaxObserver,
+                                        quant_min=0,
+                                        quant_max=255,
+                                        is_dynamic=True,
+                                        dtype=torch.quint8,
+                                        averaging_constant=1,
+                                    ),
+            weight=FakeQuantize.with_args(
+                                        observer=MovingAverageMinMaxObserver,
+                                        quant_min=-128,
+                                        quant_max=127,
+                                        dtype=torch.qint8,
+                                        qscheme=torch.per_tensor_symmetric,
+                                        reduce_range=False,
+                                    ),
+        )
 
-# quantization_config = QConfig(
-    #     activation=torch.nn.Identity,
-    #     weight=MinMaxObserver.with_args(
-    #                                     dtype=torch.qint8,
-    #                                     qscheme=torch.per_tensor_symmetric,
-    #                                     quant_min=-8,
-    #                                     quant_max=7,
-    #                                 ),
-    # )
+    elif precision == 4:
+        quantization_config = QConfig(
+            activation=FakeQuantize.with_args(
+                                        observer=MovingAverageMinMaxObserver,
+                                        quant_min=0,
+                                        quant_max=15,
+                                        is_dynamic=True,
+                                        dtype=torch.quint8,
+                                        averaging_constant=1,
+                                    ),
+            weight=FakeQuantize.with_args(
+                                        observer=MovingAverageMinMaxObserver,
+                                        quant_min=-8,
+                                        quant_max=7,
+                                        dtype=torch.qint8,
+                                        qscheme=torch.per_tensor_symmetric,
+                                        reduce_range=False,
+                                    ),
+        )
+    
+    elif precision == 2:
+        quantization_config = QConfig(
+            activation=FakeQuantize.with_args(
+                                        observer=MovingAverageMinMaxObserver,
+                                        quant_min=0,
+                                        quant_max=3,
+                                        is_dynamic=True,
+                                        dtype=torch.quint8,
+                                        averaging_constant=1,
+                                    ),
+            weight=FakeQuantize.with_args(
+                                        observer=MovingAverageMinMaxObserver,
+                                        quant_min=-2,
+                                        quant_max=1,
+                                        dtype=torch.qint8,
+                                        qscheme=torch.per_tensor_symmetric,
+                                        reduce_range=False,
+                                    ),
+        )
 
-    # embedding_layer_qconfig = QConfig(
-    #     activation=torch.nn.Identity,
-    #     weight=PerChannelMinMaxObserver.with_args(
-    #                                         dtype=torch.quint8,
-    #                                         qscheme=torch.per_channel_affine_float_qparams,
-    #                                         ch_axis=0,
-    #                                         quant_min=0,
-    #                                         quant_max=15,
-    #                                     ),
-    # )
+    else:
+        raise ValueError("Precision not supported")
+
+    return quantization_config
+
