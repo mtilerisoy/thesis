@@ -10,7 +10,7 @@ import time
 import numpy as np
 
 import configs as config
-from sensitivity_utils import print_size_of_model, SmallMTDataModuleVILT, SmallMTDataModuleMETER, get_quantization_config
+from quantization_utils import print_size_of_model, SmallMTDataModuleVILT, SmallMTDataModuleMETER, get_quantization_config
 
 # Limit the number of CPUs
 os.environ["OMP_NUM_THREADS"] = "8"
