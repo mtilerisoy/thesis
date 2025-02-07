@@ -32,13 +32,28 @@ if __name__ == "__main__":
     # parser.add_argument('--pred_file', nargs='?', type=str, default='ViLT_original_predictions.json', help='Path to the predictions file')
     # parser.add_argument('--ans_file', nargs='?', type=str, default='ViLT_original_answers.json', help='Path to the original answers file')
     
-    parser.add_argument('pred_file', type=str, default='ViLT_original_predictions.json', help='Path to the predictions file')
-    parser.add_argument('ans_file', type=str, default='ViLT_original_answers.json', help='Path to the original answers file')
+    # parser.add_argument('pred_file', type=str, default='ViLT_original_predictions.json', help='Path to the predictions file')
+    # parser.add_argument('ans_file', type=str, default='ViLT_original_answers.json', help='Path to the original answers file')
 
-    args = parser.parse_args()
+    # args = parser.parse_args()
 
-    pred_file = "result/vqa/" + args.pred_file
-    ans_file = "result/vqa/" + args.ans_file
+    # pred_file = "result/vqa/" + args.pred_file
+    # ans_file = "result/vqa/" + args.ans_file
+
+    pred_file = input("Enter the file name of the predictions file: ")
+    model_type = input("Enter the model type (vilt, meter): ")
+
+    if "vilt" in model_type:
+        ans_file = "ViLT_original_answers.json"
+    
+    elif "meter" in model_type:
+        ans_file = "METER_original_answers.json"
+    
+    else:
+        raise ValueError("Model type not supported")
+
+    pred_file = f"result/vqa_submit_{model_type}_vqa_" + pred_file + ".json"
+    ans_file = "result/vqa/" + ans_file
 
     predictions = load_predictions(pred_file)
     original_answers = load_original_answers(ans_file)
