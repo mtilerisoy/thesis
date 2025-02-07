@@ -12,6 +12,7 @@ from einops import rearrange
 
 from vilt.modules.dist_utils import all_gather
 
+from datetime import datetime
 
 def cost_matrix_cosine(x, y, eps=1e-5):
     """Compute cosine distnace across every pairs of x, y (batched)
@@ -601,7 +602,13 @@ def vqa_test_step(pl_module, batch, output):
     import json
     
     # Get the question id and correct answer pairs from the datamodule
-    qid_ans = pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
+    qid_ans = (
+        pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].qid_ans_pairs
+        if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts
+        else pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
+        if "ood_vqa" in pl_module.trainer.datamodule.dm_dicts
+        else pl_module.trainer.datamodule.dm_dicts["vqa"].qid_ans_pairs
+    )
 
     # Convert the list of tuples to a list of dictionaries
     qid_ans_dicts = [{"question_id": int(qid), "answer": ans} for qid, ans in qid_ans]
@@ -642,7 +649,11 @@ def vqa_test_wrapup(outs, model_name):
             with open(path, "r") as fp:
                 jsons += json.load(fp)
         os.makedirs("result", exist_ok=True)
-        with open(f"result/vqa_submit_{model_name}.json", "w") as fp:
+
+        # Get the current date and time to make the name unique
+        current_time = datetime.now().strftime("%Y%m%d_%H%M")
+
+        with open(f"result/vqa_submit_{model_name}_{current_time}.json", "w") as fp:
             json.dump(jsons, fp, indent=4)
 
     torch.distributed.barrier()

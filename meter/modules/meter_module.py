@@ -286,14 +286,14 @@ class METERTransformerSS(pl.LightningModule):
 
         return total_loss
 
-    def training_epoch_end(self, outs):
+    def on_train_epoch_end(self):
         meter_utils.epoch_wrapup(self)
 
     def validation_step(self, batch, batch_idx):
         meter_utils.set_task(self)
         output = self(batch)
 
-    def validation_epoch_end(self, outs):
+    def on_validation_epoch_end(self):
         meter_utils.epoch_wrapup(self)
 
     def test_step(self, batch, batch_idx):
@@ -317,3 +317,50 @@ class METERTransformerSS(pl.LightningModule):
 
     def configure_optimizers(self):
         return meter_utils.set_schedule(self)
+
+
+
+    def get_mlp_outputs(
+        self,
+        batch,
+        block_idx,
+        mask_text=False,
+        mask_image=False,
+        image_token_type_idx=1,
+        img=None,
+    ):
+        if img is None:
+            if f"image_{image_token_type_idx - 1}" in batch:
+                imgkey = f"image_{image_token_type_idx - 1}"
+            else:
+                imgkey = "image"
+            img = batch[imgkey][0]
+
+        do_mlm = "_mlm" if mask_text else ""
+        text_ids = batch[f"text_ids{do_mlm}"]
+        text_labels = batch[f"text_labels{do_mlm}"]
+        text_masks = batch[f"text_masks"]
+
+        text_embeds = self.text_transformer.embeddings(input_ids=text_ids)
+        device = text_embeds.device
+        input_shape = text_masks.size()
+        extend_text_masks = self.text_transformer.get_extended_attention_mask(text_masks, input_shape, device)
+
+        if block_idx == -1:
+            return text_embeds, extend_text_masks
+        
+        else:
+            for i, layer in enumerate(self.text_transformer.encoder.layer):
+                if i == block_idx:
+                    attention_output, outputs = layer.custom_get_attention(text_embeds, extend_text_masks)
+
+                    fc1 = layer.custom_get_mlp_fc1(attention_output)
+                    fc2, final_outputs = layer.custom_get_mlp_fc2(fc1, attention_output, outputs)
+                    # fc2, final_outputs = layer.custom_get_mlp(attention_output, outputs)
+                    return fc1, fc2, final_outputs
+                
+                text_embeds = layer(text_embeds, extend_text_masks)[0]
+                
+        
+        # for layer in self.text_transformer.encoder.layer:
+        #     text_embeds = layer(text_embeds, extend_text_masks)[0]

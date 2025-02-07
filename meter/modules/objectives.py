@@ -461,6 +461,7 @@ def arc_test_step(pl_module, batch, output):
 
 
 def vqa_test_wrapup(outs, model_name):
+    
     rank = torch.distributed.get_rank()
     qids, preds = list(), list()
     gqa = False
@@ -490,7 +491,7 @@ def vqa_test_wrapup(outs, model_name):
 
         # Get the current date and time to make the name unique
         current_time = datetime.now().strftime("%Y%m%d_%H%M")
-
+        
         with open(f"result/vqa_submit_{model_name}_{current_time}.json", "w") as fp:
             json.dump(jsons, fp, indent=4)
 

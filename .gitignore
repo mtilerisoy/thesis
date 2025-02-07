@@ -1,12 +1,13 @@
 # Project Specific
 result/
 .idea/
-xignore/*
+xignore/
 lightning_logs/*
 old-versions/*
 *.yaml
 events*
-dev/*
+dev/
+*.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

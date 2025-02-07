@@ -231,14 +231,14 @@ class ViLTransformerSS(pl.LightningModule):
 
         return total_loss
 
-    def training_epoch_end(self, outs):
+    def on_train_epoch_end(self, outs):
         vilt_utils.epoch_wrapup(self)
 
     def validation_step(self, batch, batch_idx):
         vilt_utils.set_task(self)
         output = self(batch)
 
-    def validation_epoch_end(self, outs):
+    def on_validation_epoch_end(self, outs):
         vilt_utils.epoch_wrapup(self)
 
     def test_step(self, batch, batch_idx):
@@ -262,3 +262,69 @@ class ViLTransformerSS(pl.LightningModule):
 
     def configure_optimizers(self):
         return vilt_utils.set_schedule(self)
+
+    
+    # Custom inference function for the ablation study
+    # Use only for the transformer model
+    def get_co_embeds(
+        self,
+        batch,
+        block_idx,
+        mask_text=False,
+        mask_image=False,
+        image_token_type_idx=1,
+        image_embeds=None,
+        image_masks=None,
+    ):
+        if f"image_{image_token_type_idx - 1}" in batch:
+            imgkey = f"image_{image_token_type_idx - 1}"
+        else:
+            imgkey = "image"
+
+        do_mlm = "_mlm" if mask_text else ""
+        text_ids = batch[f"text_ids{do_mlm}"]
+        text_labels = batch[f"text_labels{do_mlm}"]
+        text_masks = batch[f"text_masks"]
+        text_embeds = self.text_embeddings(text_ids)
+
+        if image_embeds is None and image_masks is None:
+            img = batch[imgkey][0]
+            (
+                image_embeds,
+                image_masks,
+                patch_index,
+                image_labels,
+            ) = self.transformer.visual_embed(
+                img,
+                max_image_len=self.hparams.config["max_image_len"],
+                mask_it=mask_image,
+            )
+        else:
+            patch_index, image_labels = (
+                None,
+                None,
+            )
+
+        text_embeds, image_embeds = (
+            text_embeds + self.token_type_embeddings(torch.zeros_like(text_masks)),
+            image_embeds
+            + self.token_type_embeddings(
+                torch.full_like(image_masks, image_token_type_idx)
+            ),
+        )
+
+        co_embeds = torch.cat([text_embeds, image_embeds], dim=1)
+        co_masks = torch.cat([text_masks, image_masks], dim=1)
+
+        x = co_embeds
+
+        if block_idx == -1:
+            return co_embeds, co_masks
+
+        else:
+            for i, blk in enumerate(self.transformer.blocks):
+                if i > block_idx:
+                    break
+                x, _attn = blk(x, mask=co_masks)
+        
+            return x, _attn

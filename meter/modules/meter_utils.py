@@ -199,7 +199,7 @@ def set_schedule(pl_module):
                 for n, p in pl_module.named_parameters()
                 if not any(nd in n for nd in no_decay)
                 and not any(bb in n for bb in head_names)
-                and not any(ht in n for ht in cross_modal_names)
+                and not any(ht in n for ht in cross_modal_names) and p.requires_grad
             ],
             "weight_decay": wd,
             "lr": lr,
@@ -210,7 +210,7 @@ def set_schedule(pl_module):
                 for n, p in pl_module.named_parameters()
                 if any(nd in n for nd in no_decay)
                 and not any(bb in n for bb in head_names)
-                and not any(ht in n for ht in cross_modal_names)
+                and not any(ht in n for ht in cross_modal_names) and p.requires_grad
             ],
             "weight_decay": 0.0,
             "lr": lr,
@@ -221,7 +221,7 @@ def set_schedule(pl_module):
                 for n, p in pl_module.named_parameters()
                 if not any(nd in n for nd in no_decay)
                 and any(bb in n for bb in head_names)
-                and not any(ht in n for ht in cross_modal_names)
+                and not any(ht in n for ht in cross_modal_names) and p.requires_grad
             ],
             "weight_decay": wd,
             "lr": lr * lr_mult_head,
@@ -231,7 +231,7 @@ def set_schedule(pl_module):
                 p
                 for n, p in pl_module.named_parameters()
                 if any(nd in n for nd in no_decay) and any(bb in n for bb in head_names)
-                and not any(ht in n for ht in cross_modal_names)
+                and not any(ht in n for ht in cross_modal_names) and p.requires_grad
             ],
             "weight_decay": 0.0,
             "lr": lr * lr_mult_head,
@@ -242,7 +242,7 @@ def set_schedule(pl_module):
                 for n, p in pl_module.named_parameters()
                 if not any(nd in n for nd in no_decay)
                 and not any(bb in n for bb in head_names)
-                and any(ht in n for ht in cross_modal_names)
+                and any(ht in n for ht in cross_modal_names) and p.requires_grad
             ],
             "weight_decay": wd,
             "lr": lr * lr_mult_cross_modal,
@@ -253,7 +253,7 @@ def set_schedule(pl_module):
                 for n, p in pl_module.named_parameters()
                 if any(nd in n for nd in no_decay)
                 and not any(bb in n for bb in head_names)
-                and any(ht in n for ht in cross_modal_names)
+                and any(ht in n for ht in cross_modal_names) and p.requires_grad
             ],
             "weight_decay": 0.0,
             "lr": lr * lr_mult_cross_modal,
