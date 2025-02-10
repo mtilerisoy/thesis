@@ -85,7 +85,7 @@ def print_size_of_model(model):
 import os
 import pytorch_lightning as pl
 
-def init_trainer(_config):
+def init_trainer(_config, accelerator, num_devices=1):
     """
     Function to initialize the trainer for CPU inference. Usually used for quantization.
 
@@ -126,11 +126,12 @@ def init_trainer(_config):
     max_steps = _config["max_steps"] if _config["max_steps"] is not None else None
 
     trainer = pl.Trainer(
-        accelerator="gpu",
-        devices=_config["num_gpus"],
+        accelerator=accelerator,
+        # devices=_config["num_gpus"],
+        devices=num_devices,
         num_nodes=_config["num_nodes"],
         precision=_config["precision"],
-        strategy="ddp",
+        # strategy=strategy,
         benchmark=True,
         deterministic=True,
         max_epochs=_config["max_epoch"] if max_steps is None else 1000,
@@ -275,14 +276,12 @@ def get_qat_config(precision):
 
     if precision == 8:
         quantization_config = QConfig(
-            activation=FakeQuantize.with_args(
-                                        observer=MovingAverageMinMaxObserver,
-                                        quant_min=0,
-                                        quant_max=255,
-                                        is_dynamic=True,
-                                        dtype=torch.quint8,
-                                        averaging_constant=1,
-                                    ),
+            activation=PlaceholderObserver.with_args(
+                                                dtype=torch.quint8,
+                                                quant_min=0,
+                                                quant_max=255,
+                                                is_dynamic=True,
+                                            ),
             weight=FakeQuantize.with_args(
                                         observer=MovingAverageMinMaxObserver,
                                         quant_min=-128,
@@ -295,14 +294,12 @@ def get_qat_config(precision):
 
     elif precision == 4:
         quantization_config = QConfig(
-            activation=FakeQuantize.with_args(
-                                        observer=MovingAverageMinMaxObserver,
-                                        quant_min=0,
-                                        quant_max=15,
-                                        is_dynamic=True,
-                                        dtype=torch.quint8,
-                                        averaging_constant=1,
-                                    ),
+            activation=PlaceholderObserver.with_args(
+                                                dtype=torch.quint8,
+                                                quant_min=0,
+                                                quant_max=15,
+                                                is_dynamic=True,
+                                            ),
             weight=FakeQuantize.with_args(
                                         observer=MovingAverageMinMaxObserver,
                                         quant_min=-8,
@@ -315,14 +312,12 @@ def get_qat_config(precision):
     
     elif precision == 2:
         quantization_config = QConfig(
-            activation=FakeQuantize.with_args(
-                                        observer=MovingAverageMinMaxObserver,
-                                        quant_min=0,
-                                        quant_max=3,
-                                        is_dynamic=True,
-                                        dtype=torch.quint8,
-                                        averaging_constant=1,
-                                    ),
+            activation=PlaceholderObserver.with_args(
+                                                dtype=torch.quint8,
+                                                quant_min=0,
+                                                quant_max=3,
+                                                is_dynamic=True,
+                                            ),
             weight=FakeQuantize.with_args(
                                         observer=MovingAverageMinMaxObserver,
                                         quant_min=-2,
