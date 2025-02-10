@@ -270,7 +270,29 @@ def get_quantization_config(precision):
 
     return quantization_config, embedding_layer_qconfig
 
+from copy import deepcopy
+def quantize_modules(model, bit_precision, modules_to_quantize):
 
+    # Get the quantization configuration
+    dynamic_ptq_config, embedding_q_config = get_quantization_config(bit_precision)
+
+    # Initialize the dictionary of the quantization configuration
+    q_config_dict = dict()
+
+    # Assign the quantization configuration to the layers
+    for layer in modules_to_quantize:
+        if "embedding" in layer:
+            q_config_dict[layer] = embedding_q_config
+        q_config_dict[layer] = dynamic_ptq_config
+
+    # Quantize the model dynamically
+    model_dynamic = deepcopy(model)
+    torch.quantization.quantize_dynamic(
+        model_dynamic, q_config_dict, inplace=True
+    )
+
+    return model_dynamic
+        
 from torch.quantization import FakeQuantize, MovingAverageMinMaxObserver
 def get_qat_config(precision):
 
