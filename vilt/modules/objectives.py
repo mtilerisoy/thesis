@@ -354,8 +354,6 @@ def compute_nlvr2(pl_module, batch):
     nlvr2_labels = batch["answers"]
     nlvr2_labels = torch.tensor(nlvr2_labels).to(pl_module.device).long()
     
-    nlvr2_logits = pl_module.dequant(nlvr2_logits)
-    
     nlvr2_loss = F.cross_entropy(nlvr2_logits, nlvr2_labels)
 
     ret = {
