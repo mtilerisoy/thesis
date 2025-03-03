@@ -399,13 +399,11 @@ class Block(nn.Module):
             act_layer=act_layer,
             drop=drop,
         )
-        self.quant = torch.ao.quantization.QuantStub()
-        self.dequant = torch.ao.quantization.DeQuantStub()
-
+        
     def forward(self, x, mask=None):
-        _x, attn = self.attn(self.dequant(self.norm1(self.quant(x))), mask=mask)
+        _x, attn = self.attn(self.norm1(x), mask=mask)
         x = x + self.drop_path(_x)
-        x = x + self.drop_path(self.dequant(self.mlp(self.norm2(self.quant(x)))))
+        x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x, attn
 
 
