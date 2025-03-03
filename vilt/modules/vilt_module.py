@@ -22,7 +22,7 @@ class ViLTransformerSS(pl.LightningModule):
         )
 
         # Get the KD layer index from the kwargs to apply the scaling factor
-        self.kd_layer = kwargs.get("kd_layer", -1)
+        self.kd_layer = kwargs.get("kd_layer", None)
 
         bert_config = BertConfig(
             vocab_size=config["vocab_size"],
