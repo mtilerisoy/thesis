@@ -6,13 +6,16 @@ import pytorch_lightning as pl
 from vilt.modules import vilt_utils_kd as vilt_utils
 
 class KDLightningModule(pl.LightningModule):
-    def __init__(self, student_model, teacher_model, alpha_kd=0.5, lr=2e-5, config=None, T=1.0):
+    def __init__(self, student_model, teacher_model, alpha_kd=0.5, lr=2e-5, config=None, T=1.0, **kwargs):
         super().__init__()
         self.student_model = student_model
         self.teacher_model = teacher_model
         self.alpha_kd = alpha_kd
         self.lr = lr
         self.T = T
+        self.kd_layer = kwargs.get("kd_layer", -1)
+
+        print(f"Applying KD to Layer: {self.kd_layer}")
 
         self.current_tasks = list()        
         self.save_hyperparameters()
@@ -39,8 +42,8 @@ class KDLightningModule(pl.LightningModule):
             self.teacher_fusion_feats = out[0]
 
         # Register hook on the last transformer block
-        self.student_model.transformer.blocks[-1].register_forward_hook(student_hook)
-        self.teacher_model.transformer.blocks[-1].register_forward_hook(teacher_hook)
+        self.student_model.transformer.blocks[self.kd_layer].register_forward_hook(student_hook)
+        self.teacher_model.transformer.blocks[self.kd_layer].register_forward_hook(teacher_hook)
 
     def compute_nlvr2_loss(self, batch):
         """ Compute NLVR2 classification loss """
@@ -119,15 +122,8 @@ class KDLightningModule(pl.LightningModule):
         teacher_feats = F.normalize(teacher_feats, dim=-1)
         student_feats = F.normalize(self.student_fusion_feats, dim=-1)
 
-        # # Compute Mean Squared Error (MSE) loss
-        # kd_loss = F.mse_loss(student_feats, teacher_feats)
-
-        # Compute Kullback-Leibler (KL) divergence loss
-        kd_loss = F.kl_div(
-            F.log_softmax(student_feats / self.T, dim=-1),
-            F.softmax(teacher_feats / self.T, dim=-1),
-            reduction="batchmean"
-        )
+        # Compute Mean Squared Error (MSE) loss
+        kd_loss = F.mse_loss(student_feats, teacher_feats)
 
         return kd_loss
     
