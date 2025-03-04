@@ -119,11 +119,11 @@ class KDLightningModule(pl.LightningModule):
         teacher_feats = self.teacher_fusion_feats.detach()
 
         # Normalize the features before computing KD loss
-        teacher_feats = F.normalize(teacher_feats, dim=-1)
-        student_feats = F.normalize(self.student_fusion_feats, dim=-1)
+        # teacher_feats = F.normalize(teacher_feats, dim=-1)
+        # student_feats = F.normalize(self.student_fusion_feats, dim=-1)
 
         # Compute Mean Squared Error (MSE) loss
-        kd_loss = F.mse_loss(student_feats, teacher_feats)
+        kd_loss = F.mse_loss(self.student_fusion_feats, teacher_feats)
 
         return kd_loss
     
