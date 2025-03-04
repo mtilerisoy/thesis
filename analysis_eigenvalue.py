@@ -3,16 +3,22 @@ import os
 os.environ["OMP_NUM_THREADS"] = "10"  # Set this to the number of CPUs you want to use
 os.environ["MKL_NUM_THREADS"] = "10"  # Set this to the number of CPUs you want to use
 
+# Initialize distributed backend
+import torch.distributed as dist
+os.environ['MASTER_ADDR'] = 'localhost'
+os.environ['MASTER_PORT'] = '12355'
+dist.init_process_group(backend='gloo', init_method='env://', world_size=1, rank=0)
+print(f"Initialized: {dist.is_initialized()}")
+
 
 import torch
 import random
 random.seed(42)
-from torch.utils.data import Subset
-from vilt.datamodules.multitask_datamodule import MTDataModule as MTDataModuleVILT
-from meter.datamodules.multitask_datamodule import MTDataModule as MTDataModuleMeter
 
 from vilt.modules import ViLTransformerSS
 from meter.modules import METERTransformerSS
+
+from quantization_utils import SmallMTDataModuleMETER, SmallMTDataModuleVILT
 
 # Set the configuration
 import pytorch_lightning as pl
@@ -34,52 +40,6 @@ device = "cpu"
 
 
 
-class SmallMTDataModuleVILT(MTDataModuleVILT):
-    def __init__(self, _config, dist=False, num_samples=5, start_idx=100):
-        super().__init__(_config, dist)
-        self.num_samples = num_samples
-        self.start_idx = start_idx
-
-    def setup(self, stage, is_random):
-        super().setup(stage)
-        
-        # Limit the number of samples in the datasets
-        if is_random:
-            self.train_dataset = self._get_random_subset(self.train_dataset, self.num_samples)
-            self.val_dataset = self._get_random_subset(self.val_dataset, self.num_samples)
-            self.test_dataset = self._get_random_subset(self.test_dataset, self.num_samples)
-        else:    
-            self.train_dataset = Subset(self.train_dataset, range(self.start_idx, self.start_idx+self.num_samples))
-            self.val_dataset = Subset(self.val_dataset, range(self.start_idx, self.start_idx+self.num_samples))
-            self.test_dataset = Subset(self.test_dataset, range(self.start_idx, self.start_idx+self.num_samples))
-        
-    def _get_random_subset(self, dataset, num_samples):
-        indices = random.sample(range(len(dataset)), num_samples)
-        return Subset(dataset, indices)
-
-class SmallMTDataModuleMETER(MTDataModuleMeter):
-    def __init__(self, _config, dist=False, num_samples=10, start_idx=100):
-        super().__init__(_config, dist)
-        self.num_samples = num_samples
-        self.start_idx = start_idx
-
-    def setup(self, stage, is_random):
-        super().setup(stage)
-        
-        # Limit the number of samples in the datasets
-        if is_random:
-            self.train_dataset = self._get_random_subset(self.train_dataset, self.num_samples)
-            self.val_dataset = self._get_random_subset(self.val_dataset, self.num_samples)
-            self.test_dataset = self._get_random_subset(self.test_dataset, self.num_samples)
-        else:    
-            self.train_dataset = Subset(self.train_dataset, range(self.start_idx, self.start_idx+self.num_samples))
-            self.val_dataset = Subset(self.val_dataset, range(self.start_idx, self.start_idx+self.num_samples))
-            self.test_dataset = Subset(self.test_dataset, range(self.start_idx, self.start_idx+self.num_samples))
-        
-    
-    def _get_random_subset(self, dataset, num_samples):
-        indices = random.sample(range(len(dataset)), num_samples)
-        return Subset(dataset, indices)
 
 # Hessian analysis
 def compute_gradients(pl_module, batch, layer):
@@ -138,6 +98,8 @@ def compute_top_eigenvalue(model, layer, input, num_iterations=50):
         v_norm = torch.norm(Hv_flat)
         v = [hvi / v_norm for hvi in Hv]
         eigenvalue = v_norm.item()
+
+        print(f"Iteration: {i}, Eigenvalue: {eigenvalue}")
     
     return eigenvalue
 
@@ -174,8 +136,18 @@ def compute_averaged_eigenvalues(model, dataloader, num_batches, num_iterations=
             print(f"Computing eigenvalues for layer: {name}")
             
             for i, input_batch in enumerate(dataloader):
-                if i % 10 == 0:
-                    print(f"Batch {i+1}/{num_batches}")
+
+                if model.device == "cuda":
+                    # Move input data to GPU
+                    for key in input_batch:
+                        if isinstance(input_batch[key], torch.Tensor):
+                            input_batch[key] = input_batch[key].to(device)
+                    
+                    input_batch["image_0"][0] = input_batch["image_0"][0].to(device)
+                    input_batch["image_1"][0] = input_batch["image_1"][0].to(device)
+
+                # if i % 10 == 0:
+                print(f"Batch {i+1}/{num_batches}")
                 # if i >= num_batches:
                 #     break
 
@@ -184,6 +156,8 @@ def compute_averaged_eigenvalues(model, dataloader, num_batches, num_iterations=
                 )
                 
                 layer_eigenvalues.append(batch_eigenvalues)
+
+                model.zero_grad()
             
             # Average eigenvalues over batches
             layer_eigenvalues = torch.tensor(layer_eigenvalues).mean(dim=0).tolist()
@@ -200,8 +174,9 @@ if __name__ == '__main__':
         
         # calibrarte_dm = SmallMTDataModuleMETER(_config, dist=False, num_samples=5, start_idx=100)
         
-        infer_dm = SmallMTDataModuleMETER(_config, dist=False, num_samples=100, start_idx=0)
-        infer_dm.setup("test", is_random=True)
+        infer_dm = SmallMTDataModuleMETER(_config, dist=False, num_samples=5, start_idx=1203)
+        # infer_dm.setup("test", is_random=True)
+        infer_dm.setup("test")
         infer_dataloader = infer_dm.test_dataloader()
 
     elif "vilt" in _config["model"]:
@@ -235,6 +210,8 @@ if __name__ == '__main__':
 
     # Move model to GPU
     model.to(device)
+    model.eval()
+    print("Model moved to GPU")
 
     # ==========================================
     # ======= Initialize the dataloader ========
@@ -267,7 +244,7 @@ if __name__ == '__main__':
     #     # Save the eigenvalues to a txt file
     #     with open(f"eigenvalues_meter_{i}.txt", "w") as f:
     #         f.write(str(eigenvalues))
-    eigenvalues = compute_averaged_eigenvalues(model, infer_dataloader, num_batches, num_iterations=25)
+    eigenvalues = compute_averaged_eigenvalues(model, infer_dataloader, num_batches, num_iterations=5)
     # Save the eigenvalues to a txt file
     with open(f"eigenvalues_meter.txt", "w") as f:
         f.write(str(eigenvalues))
