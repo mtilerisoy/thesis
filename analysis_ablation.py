@@ -1,7 +1,7 @@
 import os
 # Limit the number of CPUs
-os.environ["OMP_NUM_THREADS"] = "9"  # Set this to the number of CPUs you want to use
-os.environ["MKL_NUM_THREADS"] = "9"  # Set this to the number of CPUs you want to use
+os.environ["OMP_NUM_THREADS"] = "8"  # Set this to the number of CPUs you want to use
+os.environ["MKL_NUM_THREADS"] = "8"  # Set this to the number of CPUs you want to use
 
 from quantization_utils import init_trainer, get_quantization_config, print_size_of_model
 import torch
@@ -37,7 +37,9 @@ if __name__ == '__main__':
         from meter.modules import METERTransformerSS as MODEL
         from quantization_utils import SmallMTDataModuleMETER as SmallMTDataModule
 
-        if "nlvr" in args.task:
+        if "nlvr2_original" in args.task:
+            from configs import meter_config_nlvr2_original as CONFIG
+        elif "nlvr2_ood" in args.task:
             from configs import meter_config_nlvr2 as CONFIG
         elif "vqa" in args.task:
             from configs import meter_config_vqav2 as CONFIG
@@ -49,7 +51,7 @@ if __name__ == '__main__':
 
     # Initialize the datamodules
     dm = MTDataModule(CONFIG, dist=False)
-    test_dm = SmallMTDataModule(CONFIG, dist=False, num_samples=250, start_idx=100)
+    # test_dm = SmallMTDataModule(CONFIG, dist=False, num_samples=250, start_idx=100)
     print("Datamodules initialized")
 
     # Initialize the model
@@ -57,7 +59,7 @@ if __name__ == '__main__':
     print("Model initialized")
 
     # Initialize the trainer
-    trainer = init_trainer(CONFIG)
+    trainer = init_trainer(CONFIG, accelerator="cpu", num_devices=1)
     print("Trainer initialized")
     
     print(f"Initializing the quantizers using precision: {args.precision}")
@@ -71,37 +73,67 @@ if __name__ == '__main__':
     # Quantize the model
     # layer_to_quantize = args.layer2quantize
 
-    for i in range(12):
-        # i += 6
-        print(f"Block {i}")
+    modules_to_quantize = [
+        "text_transformer.encoder.layer.2.output.dense",
+        "text_transformer.encoder.layer.2.intermediate.dense"
+        # "text_transformer.encoder.layer.3.output.dense",
+        # "text_transformer.encoder.layer.3.intermediate.dense"
+    ]
 
-        layer_to_quantize = "text_transformer.encoder.layer." + str(i)
+    # Initialize the dictionary of the quantization configuration
+    q_config_dict = dict()
 
-        # Check if the layer to quantize is in the model
-        assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
+    # Assign the quantization configuration to the layers
+    for layer in modules_to_quantize:
+        q_config_dict[layer] = quantization_config
 
-        if "embeddings" in layer_to_quantize:
-            quantization_config = embedding_layer_qconfig
+    # Quantize the model dynamically
+    model_dynamic = deepcopy(model)
+    torch.quantization.quantize_dynamic(
+        model_dynamic, q_config_dict, inplace=True
+    )
 
-        model_dynamic = deepcopy(model)
+    # Accuracy Testing
+    trainer.test(model_dynamic, datamodule=dm)
+
+    print(f"Model Used: {args.model}")
+    print(f"Task Used: {args.task}")
+    print_size_of_model(model_dynamic)
+    print(f"Precision: {args.precision}")
+    print(f"Quantized Module: {modules_to_quantize}")
+    print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
+    print(f"Used quantization config: {quantization_config}")
+    print("===================================")
+
+    # for i in range(12):
+    #     # i += 6
+    #     print(f"Block {i}")
+
+    #     layer_to_quantize = "text_transformer.encoder.layer." + str(i)
+
+    #     # Check if the layer to quantize is in the model
+    #     assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
+
+    #     if "embeddings" in layer_to_quantize:
+    #         quantization_config = embedding_layer_qconfig
+
+    #     model_dynamic = deepcopy(model)
         
-        torch.quantization.quantize_dynamic(
-            model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
-        )
+    #     torch.quantization.quantize_dynamic(
+    #         model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
+    #     )
 
-        # Accuracy Testing
-        trainer.test(model_dynamic, datamodule=dm)
+    #     # Accuracy Testing
+    #     trainer.test(model_dynamic, datamodule=dm)
 
-        print(f"Model Used: {args.model}")
-        print(f"Task Used: {args.task}")
-        print_size_of_model(model_dynamic)
-        print(f"Precision: {args.precision}")
-        print(f"Quantized Block: {layer_to_quantize}")
-        print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
-        print(".attn sub-module is quantized")
-        print("===================================")
-
-
+    #     print(f"Model Used: {args.model}")
+    #     print(f"Task Used: {args.task}")
+    #     print_size_of_model(model_dynamic)
+    #     print(f"Precision: {args.precision}")
+    #     print(f"Quantized Block: {layer_to_quantize}")
+    #     print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
+    #     print(".attn sub-module is quantized")
+    #     print("===================================")
 
 
 
@@ -109,70 +141,72 @@ if __name__ == '__main__':
 
 
 
-        # layer_to_quantize = "text_transformer.encoder.layer." + str(i) + ".attention"
 
-        # # Check if the layer to quantize is in the model
-        # assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
 
-        # if "embeddings" in layer_to_quantize:
-        #     quantization_config = embedding_layer_qconfig
+    #     # layer_to_quantize = "text_transformer.encoder.layer." + str(i) + ".attention"
 
-        # model_dynamic = deepcopy(model)
+    #     # # Check if the layer to quantize is in the model
+    #     # assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
+
+    #     # if "embeddings" in layer_to_quantize:
+    #     #     quantization_config = embedding_layer_qconfig
+
+    #     # model_dynamic = deepcopy(model)
         
-        # torch.quantization.quantize_dynamic(
-        #     model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
-        # )
+    #     # torch.quantization.quantize_dynamic(
+    #     #     model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
+    #     # )
 
-        # # Accuracy Testing
-        # trainer.test(model_dynamic, datamodule=dm)
+    #     # # Accuracy Testing
+    #     # trainer.test(model_dynamic, datamodule=dm)
 
-        # print(f"Model Used: {args.model}")
-        # print(f"Task Used: {args.task}")
-        # print_size_of_model(model_dynamic)
-        # print(f"Precision: {args.precision}")
-        # print(f"Quantized Block: {layer_to_quantize}")
-        # print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
-        # print(".attn sub-module is quantized")
-        # print("===================================")
+    #     # print(f"Model Used: {args.model}")
+    #     # print(f"Task Used: {args.task}")
+    #     # print_size_of_model(model_dynamic)
+    #     # print(f"Precision: {args.precision}")
+    #     # print(f"Quantized Block: {layer_to_quantize}")
+    #     # print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
+    #     # print(".attn sub-module is quantized")
+    #     # print("===================================")
 
 
 
-        # layer_to_quantize = "text_transformer.encoder.layer." + str(i) + ".intermediate"
+    #     # layer_to_quantize = "text_transformer.encoder.layer." + str(i) + ".intermediate"
 
-        # # Check if the layer to quantize is in the model
-        # assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
+    #     # # Check if the layer to quantize is in the model
+    #     # assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
 
-        # if "embeddings" in layer_to_quantize:
-        #     quantization_config = embedding_layer_qconfig
+    #     # if "embeddings" in layer_to_quantize:
+    #     #     quantization_config = embedding_layer_qconfig
 
-        # model_dynamic = deepcopy(model)
+    #     # model_dynamic = deepcopy(model)
         
-        # torch.quantization.quantize_dynamic(
-        #     model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
-        # )
+    #     # torch.quantization.quantize_dynamic(
+    #     #     model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
+    #     # )
 
         
-        # layer_to_quantize = "text_transformer.encoder.layer." + str(i) + ".output"
+    #     # layer_to_quantize = "text_transformer.encoder.layer." + str(i) + ".output"
 
-        # # Check if the layer to quantize is in the model
-        # assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
+    #     # # Check if the layer to quantize is in the model
+    #     # assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
 
-        # if "embeddings" in layer_to_quantize:
-        #     quantization_config = embedding_layer_qconfig
+    #     # if "embeddings" in layer_to_quantize:
+    #     #     quantization_config = embedding_layer_qconfig
         
-        # torch.quantization.quantize_dynamic(
-        #     model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
-        # )
+    #     # torch.quantization.quantize_dynamic(
+    #     #     model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
+    #     # )
 
-        # # Accuracy Testing
-        # trainer.test(model_dynamic, datamodule=dm)
+    #     # # Accuracy Testing
+    #     # trainer.test(model_dynamic, datamodule=dm)
 
-        # print(f"Model Used: {args.model}")
-        # print(f"Task Used: {args.task}")
-        # print_size_of_model(model_dynamic)
-        # print(f"Precision: {args.precision}")
-        # print(f"Quantized Block: {layer_to_quantize}")
-        # print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
-        # print(".mlp sub-module is quantized")
-        # print("===================================")
+    #     # print(f"Model Used: {args.model}")
+    #     # print(f"Task Used: {args.task}")
+    #     # print_size_of_model(model_dynamic)
+    #     # print(f"Precision: {args.precision}")
+    #     # print(f"Quantized Block: {layer_to_quantize}")
+    #     # print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
+    #     # print(".mlp sub-module is quantized")
+    #     # print("===================================")
 
