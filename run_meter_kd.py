@@ -208,8 +208,8 @@ if __name__ == "__main__":
     )
 
     # Initalize the ood dataset
-    _config = configs.vilt_config_nlvr2
-    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=1)
+    _config = configs.meter_config_nlvr2
+    dm = SmallMTDataModuleMETER(_config, dist=False, percentage=1)
     dm.setup("test", is_random=True)
     test_dataloader = dm.test_dataloader()
 
