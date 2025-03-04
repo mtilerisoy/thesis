@@ -5,19 +5,20 @@ from vilt.datamodules.multitask_datamodule import MTDataModule as MTDataModuleVI
 from meter.datamodules.multitask_datamodule import MTDataModule as MTDataModuleMeter
 
 class SmallMTDataModuleVILT(MTDataModuleVILT):
-    def __init__(self, _config, dist=False, num_samples=5, start_idx=100):
+    def __init__(self, _config, dist=False, num_samples=5, start_idx=100, percentage=None):
         super().__init__(_config, dist)
         self.num_samples = num_samples
         self.start_idx = start_idx
+        self.percentage = percentage
 
     def setup(self, stage, is_random=False):
         super().setup(stage)
         
         # Limit the number of samples in the datasets
         if is_random:
-            self.train_dataset = self._get_random_subset(self.train_dataset, self.num_samples)
-            self.val_dataset = self._get_random_subset(self.val_dataset, self.num_samples)
-            self.test_dataset = self._get_random_subset(self.test_dataset, self.num_samples)
+            self.train_dataset = self._get_random_subset(self.train_dataset, self.num_samples, self.percentage)
+            self.val_dataset = self._get_random_subset(self.val_dataset, self.num_samples, self.percentage)
+            self.test_dataset = self._get_random_subset(self.test_dataset, self.num_samples, self.percentage)
         else:    
             self.train_dataset = Subset(self.train_dataset, range(self.start_idx, self.start_idx+self.num_samples))
             self.val_dataset = Subset(self.val_dataset, range(self.start_idx, self.start_idx+self.num_samples))
@@ -72,20 +73,36 @@ def print_size_of_model(model):
     print('Size of the model (MB):', os.path.getsize("temp.p")/1e6)
     os.remove('temp.p')
 
-# def generate_command(config):
-#     command = ["python", "run_ptq.py", "with"]
-#     for key, value in config.items():
-#         if isinstance(value, dict):
-#             for sub_key, sub_value in value.items():
-#                 command.append(f"{key}.{sub_key}={sub_value}")
-#         else:
-#             command.append(f"{key}={value}")
-#     return command
+def get_module_by_path(model, path):
+    """
+    Access a module in the model by specifying the path as a string.
+    
+    Args:
+        model (nn.Module): The PyTorch model.
+        path (str): The path to the module, e.g., "transformer.blocks[0].attn.qkv".
+    
+    Returns:
+        nn.Module: The module at the specified path.
+    """
+    parts = path.split('.')
+    current_module = model
+    
+    for part in parts:
+        if '[' in part and ']' in part:
+            # Handle list indexing, e.g., "blocks[0]"
+            module_name, index = part.split('[')
+            index = int(index[:-1])  # Remove the closing bracket and convert to int
+            current_module = getattr(current_module, module_name)[index]
+        else:
+            # Handle regular attribute access
+            current_module = getattr(current_module, part)
+    
+    return current_module
 
 import os
 import pytorch_lightning as pl
 
-def init_trainer(_config, accelerator, num_devices=1):
+def init_trainer(_config, accelerator, num_devices, max_epochs, accumulation_steps, max_steps=50000):
     """
     Function to initialize the trainer for CPU inference. Usually used for quantization.
 
@@ -98,53 +115,51 @@ def init_trainer(_config, accelerator, num_devices=1):
     exp_name = f'{_config["exp_name"]}'
 
     os.makedirs(_config["log_dir"], exist_ok=True)
-    checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        save_top_k=1,
-        verbose=True,
-        monitor="val/the_metric",
-        mode="max",
-        save_last=True,
-    )
-    logger = pl.loggers.TensorBoardLogger(
-        _config["log_dir"],
-        name=f'{exp_name}_seed{_config["seed"]}_from_{_config["load_path"].split("/")[-1][:-5]}',
-    )
+    # checkpoint_callback = pl.callbacks.ModelCheckpoint(
+    #     save_top_k=1,
+    #     verbose=True,
+    #     monitor="val/the_metric",
+    #     mode="max",
+    #     save_last=True,
+    # )
+    # logger = pl.loggers.TensorBoardLogger(
+    #     _config["log_dir"],
+    #     name=f'{exp_name}_seed{_config["seed"]}_from_{_config["load_path"].split("/")[-1][:-5]}',
+    # )
 
-    lr_callback = pl.callbacks.LearningRateMonitor(logging_interval="step")
-    callbacks = [checkpoint_callback, lr_callback]
+    # lr_callback = pl.callbacks.LearningRateMonitor(logging_interval="step")
+    # callbacks = [checkpoint_callback, lr_callback]
 
-    num_gpus = (
-        _config["num_gpus"]
-        if isinstance(_config["num_gpus"], int)
-        else len(_config["num_gpus"])
-    )
+    # num_gpus = (
+    #     _config["num_gpus"]
+    #     if isinstance(_config["num_gpus"], int)
+    #     else len(_config["num_gpus"])
+    # )
 
-    grad_steps = _config["batch_size"] // (
-        _config["per_gpu_batchsize"] * num_gpus * _config["num_nodes"]
-    )
+    # grad_steps = _config["batch_size"] // (
+    #     _config["per_gpu_batchsize"] * num_gpus * _config["num_nodes"]
+    # )
 
-    max_steps = _config["max_steps"] if _config["max_steps"] is not None else None
+    # max_steps = _config["max_steps"] if _config["max_steps"] is not None else None
+
+    print("=========================================")
+    print(f"Accumulation steps: {accumulation_steps}")
+    print("=========================================")
+    
 
     trainer = pl.Trainer(
         accelerator=accelerator,
-        # devices=_config["num_gpus"],
         devices=num_devices,
         num_nodes=_config["num_nodes"],
         precision=_config["precision"],
-        # strategy=strategy,
         benchmark=True,
         deterministic=True,
-        max_epochs=_config["max_epoch"] if max_steps is None else 1000,
+        max_epochs= max_epochs, #_config["max_epoch"] if max_steps is None else 1000,
         max_steps=max_steps,
-        callbacks=callbacks,
-        logger=logger,
-        # prepare_data_per_node=False,
-        # replace_sampler_ddp=False,
-        accumulate_grad_batches=grad_steps,
-        log_every_n_steps=10,
-        # flush_logs_every_n_steps=10,
-        # resume_from_checkpoint=_config["resume_from"],
-        # weights_summary="top",
+        # callbacks=callbacks,
+        logger=False,
+        enable_checkpointing=False,
+        accumulate_grad_batches=accumulation_steps,
         fast_dev_run=_config["fast_dev_run"],
         val_check_interval=_config["val_check_interval"],
     )
@@ -192,11 +207,18 @@ def get_quantization_config(precision):
                                                 quant_max=15,
                                                 is_dynamic=True,
                                             ),
+            # activation=PlaceholderObserver.with_args(
+            #                                     dtype=torch.quint8,
+            #                                     quant_min=0,
+            #                                     quant_max=255,
+            #                                     is_dynamic=True,
+            #                                 ),
             weight=MinMaxObserver.with_args(
                                             dtype=torch.qint8,
                                             qscheme=torch.per_tensor_symmetric,
                                             quant_min=-8,
                                             quant_max=7,
+                                            reduce_range=False,
                                         ),
         )
 
@@ -271,7 +293,7 @@ def get_quantization_config(precision):
     return quantization_config, embedding_layer_qconfig
 
 from copy import deepcopy
-def quantize_modules(model, bit_precision, modules_to_quantize):
+def quantize_modules(model, modules_to_quantize, bit_precision):
 
     # Get the quantization configuration
     dynamic_ptq_config, embedding_q_config = get_quantization_config(bit_precision)
@@ -284,14 +306,17 @@ def quantize_modules(model, bit_precision, modules_to_quantize):
         if "embedding" in layer:
             q_config_dict[layer] = embedding_q_config
         q_config_dict[layer] = dynamic_ptq_config
+    
+    print("=========================================")
+    print(q_config_dict)
+    print("=========================================")
 
     # Quantize the model dynamically
-    model_dynamic = deepcopy(model)
     torch.quantization.quantize_dynamic(
-        model_dynamic, q_config_dict, inplace=True
+        model, q_config_dict, inplace=True
     )
 
-    return model_dynamic
+    return model
         
 from torch.quantization import FakeQuantize, MovingAverageMinMaxObserver
 def get_qat_config(precision):
@@ -322,13 +347,19 @@ def get_qat_config(precision):
                                                 quant_max=15,
                                                 is_dynamic=True,
                                             ),
+            # weight=MinMaxObserver.with_args(
+            #                                 dtype=torch.qint8,
+            #                                 qscheme=torch.per_tensor_symmetric,
+            #                                 quant_min=-8,
+            #                                 quant_max=7,
+            #                             ),
             weight=FakeQuantize.with_args(
-                                        observer=MovingAverageMinMaxObserver,
+                                        observer=MinMaxObserver,
                                         quant_min=-8,
                                         quant_max=7,
                                         dtype=torch.qint8,
                                         qscheme=torch.per_tensor_symmetric,
-                                        reduce_range=False,
+                                        # reduce_range=False,
                                     ),
         )
     
