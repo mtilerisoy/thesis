@@ -97,13 +97,15 @@ if __name__ == "__main__":
     # =============== Initialize Full Precision Model ==============
     model_teacher = ViLTransformerSS(_config)
     model_student = copy.deepcopy(model_teacher)
+    model_student.kd_layer = 0
 
     model_teacher.eval()
 
     # Define the modeules to train
-    modules_to_train = {'layer_names': ["transformer.blocks.0.mlp.fc1",
-                                        "transformer.blocks.0.mlp.fc2",]
-                        }
+    modules_to_train = {'layer_names': ["scale_factor",
+                                        "transformer.blocks.0.mlp.fc1",
+                                        "transformer.blocks.0.mlp.fc2"],
+                        'kd_layer': 0}
 
     qat_quantizer = Int8DynActInt4WeightQATQuantizer()
     model_student = qat_quantizer.prepare(model_student, **modules_to_train)
@@ -112,9 +114,9 @@ if __name__ == "__main__":
     freeze_except_layers(model_student, modules_to_train['layer_names'])
 
     # Initialize the KD model
-    kd_model = KDLightningModule(student_model=model_student, teacher_model=model_teacher, alpha_kd=1, lr=args.learning_rate, config=_config)
+    kd_model = KDLightningModule(student_model=model_student, teacher_model=model_teacher, alpha_kd=1, lr=args.learning_rate, config=_config, **modules_to_train)
 
-
+    print("Model Scale Factor: ", model_student.scale_factor)
     # ========== Initialize the trainer for full precision ==========
     exp_name = f'{_config["exp_name"]}'
 
@@ -185,6 +187,7 @@ if __name__ == "__main__":
     print(f"Min, Max and Mean of the ORIGINAL WEIGHTS: \n{torch.min(fc2_weight)}, {torch.max(fc2_weight)}, mean: {torch.mean(fc2_weight)}")
     print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_qat)}, {torch.max(fc2_weight_after_qat)}, mean: {torch.mean(fc2_weight_after_qat)}")
     print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_dyn_quant)}, {torch.max(fc2_weight_after_dyn_quant)}")
+    print("Model Scale Factor after training: \n", model_student.scale_factor)
     print("============================================================")
 
 

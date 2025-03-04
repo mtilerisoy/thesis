@@ -8,11 +8,21 @@ from vilt.modules import heads, objectives, vilt_utils
 
 
 class ViLTransformerSS(pl.LightningModule):
-    def __init__(self, config):
+    def __init__(self, config, scale_factor=1.0, **kwargs):
         super().__init__()
         self.save_hyperparameters()
 
+        # Custom changes to the init function
+        # Required to update the code for new pl package version
         self.outputs = []
+
+        # KD output scale matching learnable scale parameter
+        self.scale_factor = nn.Parameter(
+            torch.tensor(scale_factor, requires_grad=True)
+        )
+
+        # Get the KD layer index from the kwargs to apply the scaling factor
+        self.kd_layer = kwargs.get("kd_layer", None)
 
         bert_config = BertConfig(
             vocab_size=config["vocab_size"],
@@ -163,6 +173,8 @@ class ViLTransformerSS(pl.LightningModule):
 
         for i, blk in enumerate(self.transformer.blocks):
             x, _attn = blk(x, mask=co_masks)
+            if i == self.kd_layer:
+                x = x * self.scale_factor
 
         x = self.transformer.norm(x)
         text_feats, image_feats = (
