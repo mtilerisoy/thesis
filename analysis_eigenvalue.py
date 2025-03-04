@@ -7,12 +7,12 @@ from loguru import logger
 import sys
 
 # Configure loguru for terminal output only
-logger.remove()  # Remove default handler
+logger.remove() 
 logger.add(
     sys.stderr,
     colorize=True,
     format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
-    level="INFO"
+    level="DEBUG"
 )
 
 # Initialize distributed backend
@@ -45,11 +45,10 @@ gpu_id = 0
 device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 torch.cuda.set_device(gpu_id)
 
-print(torch.cuda.is_available())
-print(torch.cuda.device_count())
-print(torch.cuda.current_device())
-
-
+logger.info(torch.cuda.is_available())
+logger.info(torch.cuda.device_count())
+logger.info(torch.cuda.current_device())
+logger.info(f"Using Device: {device}")
 
 
 # Hessian analysis
@@ -143,14 +142,14 @@ def compute_averaged_eigenvalues(model, dataloader, num_batches, num_iterations=
             
             for i, input_batch in enumerate(dataloader):
                 try:
-                    if model.device == "cuda":
-                        # Move input data to GPU
-                        for key in input_batch:
-                            if isinstance(input_batch[key], torch.Tensor):
-                                input_batch[key] = input_batch[key].to(device)
-                        
-                        input_batch["image_0"][0] = input_batch["image_0"][0].to(device)
-                        input_batch["image_1"][0] = input_batch["image_1"][0].to(device)
+                    logger.debug(f"Moving input batch to GPU: {device}")
+                    # Move input data to GPU
+                    for key in input_batch:
+                        if isinstance(input_batch[key], torch.Tensor):
+                            input_batch[key] = input_batch[key].to(device)
+                    
+                    input_batch["image_0"][0] = input_batch["image_0"][0].to(device)
+                    input_batch["image_1"][0] = input_batch["image_1"][0].to(device)
 
                     logger.debug(f"Processing batch {i+1}/{num_batches}")
 
@@ -162,6 +161,7 @@ def compute_averaged_eigenvalues(model, dataloader, num_batches, num_iterations=
                     model.zero_grad()
                 except Exception as e:
                     logger.error(f"Error processing batch {i+1}: {str(e)}")
+                    logger.debug(f"Device : {device} | Model device: {model.device} | Input batch device: {input_batch['image_0'][0].device}")
                     continue
             
             # Average eigenvalues over batches
