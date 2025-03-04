@@ -50,6 +50,25 @@ logger.info(torch.cuda.device_count())
 logger.info(torch.cuda.current_device())
 logger.info(f"Using Device: {device}")
 
+import gc
+import torch.cuda
+
+def clear_gpu_memory():
+    """Utility function to clear GPU memory and cache."""
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        gc.collect()
+        # logger.debug("Cleared GPU memory and cache")
+
+def handle_failed_computation(layer_name, error, retry_count=3):
+    """Handle failed computations with retry logic."""
+    if retry_count > 0:
+        logger.warning(f"Computation failed for layer {layer_name}. Retrying... ({retry_count} attempts left)")
+        clear_gpu_memory()
+        return True, retry_count - 1
+    else:
+        logger.error(f"Computation failed for layer {layer_name} after all retries. Error: {str(error)}")
+        return False, 0
 
 # Hessian analysis
 def compute_gradients(pl_module, batch, layer):
@@ -106,7 +125,7 @@ def compute_top_eigenvalue(model, layer, input, num_iterations=50):
         v = [hvi / v_norm for hvi in Hv]
         eigenvalue = v_norm.item()
 
-        logger.debug(f"Iteration: {i}, Eigenvalue: {eigenvalue}")
+    logger.debug(f"Final Eiganvalue after {num_iterations} iterations: {eigenvalue}")
     
     return eigenvalue
 
@@ -132,17 +151,19 @@ def compute_layer_eigenvalues(model, input, num_iterations=10):
 
 def compute_averaged_eigenvalues(model, dataloader, num_batches, num_iterations=50):
     eigenvalues = {}
+    failed_layers = []
+    
     for name, layer in model.named_modules():
         if isinstance(layer, (torch.nn.Linear)):
-            layer_eigenvalues = []
             if "encoder" not in name or "intermediate" in name or "output" not in name or "attention" in name:
                 continue
             
-            logger.info(f"Computing eigenvalues for layer: {name}")
+            logger.debug(f"Computing eigenvalues for layer: {name}")
+            layer_eigenvalues = []
+            retry_count = 3  # Number of retries for failed computations
             
             for i, input_batch in enumerate(dataloader):
                 try:
-                    logger.debug(f"Moving input batch to GPU: {device}")
                     # Move input data to GPU
                     for key in input_batch:
                         if isinstance(input_batch[key], torch.Tensor):
@@ -157,18 +178,51 @@ def compute_averaged_eigenvalues(model, dataloader, num_batches, num_iterations=
                         model, layer, input_batch, num_iterations=num_iterations
                     )
                     
+                    # Validate eigenvalue
+                    if not isinstance(batch_eigenvalues, (int, float)) or torch.isnan(torch.tensor(batch_eigenvalues)):
+                        raise ValueError(f"Invalid eigenvalue computed: {batch_eigenvalues}")
+                    
                     layer_eigenvalues.append(batch_eigenvalues)
+                    
+                    # Clear memory after each batch
                     model.zero_grad()
+                    clear_gpu_memory()
+                    
                 except Exception as e:
-                    logger.error(f"Error processing batch {i+1}: {str(e)}")
+                    logger.error(f"Error processing batch {i+1} for layer {name}: {str(e)}")
                     logger.debug(f"Device : {device} | Model device: {model.device} | Input batch device: {input_batch['image_0'][0].device}")
-                    continue
+                    
+                    # Try to recover from the error
+                    should_retry, retry_count = handle_failed_computation(name, e, retry_count)
+                    if should_retry:
+                        # Retry the current batch
+                        i -= 1
+                        clear_gpu_memory()
+                        continue
+                    else:
+                        # Skip this batch if all retries failed
+                        continue
             
-            # Average eigenvalues over batches
-            layer_eigenvalues = torch.tensor(layer_eigenvalues).mean(dim=0).tolist()
-            eigenvalues[name] = layer_eigenvalues
-            logger.info(f"Layer {name}: Averaged eigenvalues = {layer_eigenvalues}")
-    return eigenvalues
+            try:
+                if len(layer_eigenvalues) > 0:
+                    # Average eigenvalues over successful batches
+                    layer_eigenvalues = torch.tensor(layer_eigenvalues).mean(dim=0).tolist()
+                    eigenvalues[name] = layer_eigenvalues
+                    logger.info(f"Layer {name}: Averaged eigenvalues = {layer_eigenvalues}")
+                else:
+                    logger.warning(f"No valid eigenvalues computed for layer {name}")
+                    failed_layers.append(name)
+            except Exception as e:
+                logger.error(f"Error computing average for layer {name}: {str(e)}")
+                failed_layers.append(name)
+            
+            # Clear memory after processing each layer
+            clear_gpu_memory()
+    
+    if failed_layers:
+        logger.warning(f"Failed to compute eigenvalues for layers: {failed_layers}")
+    
+    return eigenvalues, failed_layers
 
 if __name__ == '__main__':
     try:
@@ -176,13 +230,13 @@ if __name__ == '__main__':
         # ========= Create full datamodule =========
         # ==========================================
         if "meter" in _config["model"]:
-            infer_dm = SmallMTDataModuleMETER(_config, dist=False, num_samples=5, start_idx=1203)
-            infer_dm.setup("test")
+            infer_dm = SmallMTDataModuleMETER(_config, dist=False, percentage=0.1)
+            infer_dm.setup("test", is_random=True)
             infer_dataloader = infer_dm.test_dataloader()
             logger.info("METER datamodule initialized")
 
         elif "vilt" in _config["model"]:
-            infer_dm = SmallMTDataModuleVILT(_config, dist=False, num_samples=100, start_idx=0)
+            infer_dm = SmallMTDataModuleVILT(_config, dist=False, percentage=0.1)
             infer_dm.setup("test", is_random=True)
             infer_dataloader = infer_dm.test_dataloader()
             logger.info("ViLT datamodule initialized")
@@ -226,12 +280,19 @@ if __name__ == '__main__':
         # ==========================================
         # ========= Compute eigenvalues ============
         # ==========================================
-        eigenvalues = compute_averaged_eigenvalues(model, infer_dataloader, num_batches, num_iterations=5)
+        eigenvalues, failed_layers = compute_averaged_eigenvalues(model, infer_dataloader, num_batches, num_iterations=5)
         
         # Save the eigenvalues to a txt file
         output_file = "eigenvalues_meter.txt"
         with open(output_file, "w") as f:
+            f.write("Successful computations:\n")
             f.write(str(eigenvalues))
+            if failed_layers:
+                f.write("\n\nFailed layers:\n")
+                f.write(str(failed_layers))
+        
+        if failed_layers:
+            logger.warning(f"Computation completed with {len(failed_layers)} failed layers")
         logger.success(f"Successfully saved eigenvalues to {output_file}")
 
     except Exception as e:
