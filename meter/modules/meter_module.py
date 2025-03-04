@@ -12,11 +12,21 @@ from .clip_model import build_model, adapt_position_encoding
 from transformers import RobertaConfig, RobertaModel
 
 class METERTransformerSS(pl.LightningModule):
-    def __init__(self, config):
+    def __init__(self, config, scale_factor=1.0, **kwargs):
         super().__init__()
         self.save_hyperparameters()
 
-        self.outs = []
+        # Custom changes to the init function
+        # Required to update the code for new pl package version
+        self.outputs = []
+
+        # KD output scale matching learnable scale parameter
+        self.scale_factor = nn.Parameter(
+            torch.tensor(scale_factor, requires_grad=True)
+        )
+
+        # Get the KD layer index from the kwargs to apply the scaling factor
+        self.kd_layer = kwargs.get("kd_layer", None)
 
         self.is_clip= (not 'swin' in config['vit'])
 
@@ -200,8 +210,13 @@ class METERTransformerSS(pl.LightningModule):
         device = text_embeds.device
         input_shape = text_masks.size()
         extend_text_masks = self.text_transformer.get_extended_attention_mask(text_masks, input_shape, device)
-        for layer in self.text_transformer.encoder.layer:
+
+        # Modify to add scale factor to the KD layer
+        for i, layer in enumerate(self.text_transformer.encoder.layer):
             text_embeds = layer(text_embeds, extend_text_masks)[0]
+            if i == self.kd_layer:
+                text_embeds = text_embeds * self.scale_factor
+
         text_embeds = self.cross_modal_text_transform(text_embeds)
 
         image_embeds = self.vit_model(img)
