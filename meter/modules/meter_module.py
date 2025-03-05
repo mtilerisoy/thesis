@@ -18,7 +18,7 @@ class METERTransformerSS(pl.LightningModule):
 
         # Custom changes to the init function
         # Required to update the code for new pl package version
-        self.outputs = []
+        self.outs = []
 
         # KD output scale matching learnable scale parameter
         self.scale_factor = nn.Parameter(
