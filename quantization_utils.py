@@ -307,10 +307,6 @@ def quantize_modules(model, modules_to_quantize, bit_precision):
             q_config_dict[layer] = embedding_q_config
         q_config_dict[layer] = dynamic_ptq_config
     
-    print("=========================================")
-    print(q_config_dict)
-    print("=========================================")
-
     # Quantize the model dynamically
     torch.quantization.quantize_dynamic(
         model, q_config_dict, inplace=True
