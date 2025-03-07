@@ -138,7 +138,7 @@ class KDLightningModule(pl.LightningModule):
         nlvr2_loss = ret["nlvr2_loss"]
         kd_loss = self.compute_kd_loss(batch)
 
-        total_loss = nlvr2_loss + self.alpha_kd * kd_loss
+        total_loss = (1-self.alpha_kd) * nlvr2_loss + self.alpha_kd * kd_loss
 
         self.log("train_nlvr2_loss", nlvr2_loss, prog_bar=True)
         self.log("train_kd_loss", kd_loss, prog_bar=True)
