@@ -30,12 +30,17 @@ parser.add_argument("-l", "--learning_rate",    type=float, default=2e-4,       
 parser.add_argument("-d", "--dataset",          type=str,   default="nlvr2_ood",        help="Dataset to train the model on")
 parser.add_argument("-p", "--percentage",       type=float, default=0.01,                help="Percentage of the dataset to use for fine-tuning")
 parser.add_argument("-g", "--gpu",              type=int,   default=1,                  help="List of GPUs to use for training")
+parser.add_argument("-a", "--alpha_kd",         type=float, default=0.5,                help="Alpha value for the KD loss")
+parser.add_argument("-t", "--temperature",      type=float, default=1.0,                help="Temperature value for the KD loss")
+parser.add_argument("-L", "--log_dir",          type=str,   default="logs",             help="Directory to store the logs")
 args = parser.parse_args()
-# print("┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐")
-# print("│                                                                                                     │")
-# print(f"│  Running with: epochs={args.epochs}, learning_rate={args.learning_rate}, percentage={args.percentage}    │")
-# print("│                                                                                                     │")
-# print("└─────────────────────────────────────────────────────────────────────────────────────────────────────┘")
+print("┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐")
+print("│                                                                                                     │")
+print(f"│  Running with: epochs={args.epochs}, learning_rate={args.learning_rate}, percentage={args.percentage}    \n│")
+print(f"│  dataset={args.dataset}, gpu={args.gpu}, alpha_kd={args.alpha_kd}, temperature={args.temperature}    \n│")
+print(f"│  log_dir={args.log_dir}                                                                             \n│")
+print("│                                                                                                     │")
+print("└─────────────────────────────────────────────────────────────────────────────────────────────────────┘")
 
 
 
@@ -73,7 +78,10 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Unknown dataset: {args.dataset}")
     
-    # Adjust the batch size
+    # ========== Update the configuration ==========
+    _config["exp_name"] = "kd_loss_test"
+    os.makedirs(_config["exp_name"], exist_ok=True)
+    _config["log_dir"] = os.path.join(_config["exp_name"], args.log_dir)
     _config["batch_size"] = 32
     _config["per_gpu_batchsize"] = 16
     _config = copy.deepcopy(_config)
