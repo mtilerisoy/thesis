@@ -122,12 +122,14 @@ def init_trainer(_config, accelerator, num_devices, max_epochs, accumulation_ste
     #     mode="max",
     #     save_last=True,
     # )
-    # logger = pl.loggers.TensorBoardLogger(
-    #     _config["log_dir"],
-    #     name=f'{exp_name}_seed{_config["seed"]}_from_{_config["load_path"].split("/")[-1][:-5]}',
-    # )
+    logger = pl.loggers.TensorBoardLogger(
+        _config["log_dir"],
+        name=f'{exp_name}_seed{_config["seed"]}_from_{_config["load_path"].split("/")[-1][:-5]}',
+        
+    )
 
     # lr_callback = pl.callbacks.LearningRateMonitor(logging_interval="step")
+    loss_callback = pl.callbacks.LossMonitor()
     # callbacks = [checkpoint_callback, lr_callback]
 
     # num_gpus = (
@@ -157,7 +159,7 @@ def init_trainer(_config, accelerator, num_devices, max_epochs, accumulation_ste
         max_epochs= max_epochs, #_config["max_epoch"] if max_steps is None else 1000,
         max_steps=max_steps,
         # callbacks=callbacks,
-        logger=False,
+        logger=logger,
         enable_checkpointing=False,
         accumulate_grad_batches=accumulation_steps,
         fast_dev_run=_config["fast_dev_run"],
