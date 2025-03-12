@@ -46,15 +46,15 @@ echo "Error file: ${error_file}"
 > "${error_file}"
 
 # Loop over a series of parameter sets.
-for lr in 0.00001 0.000001; do #0.0001  0.001 0.01
-  for alpha_kd in 0.5 1 0; do
+for lr in 0.000001 0.0000001; do #0.0001  0.001 0.01 0.00001 
+  for alpha_kd in 1 0; do #0.5 1
     # echo "┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐" >> "${output_file}"
     # echo "│                                                                                                     │" >> "${output_file}"
     # echo "│  Running with: epochs=${epochs}, learning_rate=${lr}, dataset=${dataset}, alpha_kd=${alpha_kd}                        │" >> "${output_file}"
     # echo "│                                                                                                     │" >> "${output_file}"
     # echo "└─────────────────────────────────────────────────────────────────────────────────────────────────────┘" >> "${output_file}"
-    python run_vilt_kd.py   --epochs -1 \
-                            --max_steps -1 \
+    python run_vilt_kd.py   --epochs None \
+                            --max_steps 4000 \
                             --learning_rate ${lr} \
                             --dataset "nlvr2_original" \
                             --alpha_kd ${alpha_kd} \

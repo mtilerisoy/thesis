@@ -25,7 +25,7 @@ from torchao.quantization.prototype.qat import Int8DynActInt4WeightQATQuantizer
 import argparse
 # Create an ArgumentParser object
 parser = argparse.ArgumentParser(description="Custom QAT Script")
-parser.add_argument("-e", "--epochs",           type=int,   default=2,                  help="Number of epochs to train the model")
+parser.add_argument("-e", "--epochs",                       default=2,                  help="Number of epochs to train the model")
 parser.add_argument("-l", "--learning_rate",    type=float, default=1e-5,               help="Learning rate for the optimizer")
 parser.add_argument("-d", "--dataset",          type=str,   default="nlvr2_ood",        help="Dataset to train the model on")
 parser.add_argument("-p", "--percentage",       type=float, default=0.5,               help="Percentage of the dataset to use for fine-tuning")
@@ -35,12 +35,13 @@ parser.add_argument("-t", "--temperature",      type=float, default=1.0,        
 parser.add_argument("-L", "--log_dir",          type=str,   default="experiments/logs",      help="Directory to store the logs")
 parser.add_argument("-x", "--exp_name",         type=str,   default="kd_loss_compare",  help="Name of the experiment")
 parser.add_argument("-s", "--max_steps",        type=int,   default=25000,              help="Maximum number of steps to train the model")
+parser.add_argument("-k", "--kd_layer",         type=int,   default=0,                  help="Block number to quantize")
 args = parser.parse_args()
 print("┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐")
 print("│                                                                                                     │")
 print(f"│  Running with: epochs={args.epochs}, learning_rate={args.learning_rate}, percentage={args.percentage}    \n│")
 print(f"│  dataset={args.dataset}, gpu={args.gpu}, alpha_kd={args.alpha_kd}, temperature={args.temperature}    \n│")
-print(f"│  log_dir={args.log_dir}, max_steps={args.max_steps}                                                                          \n│")
+print(f"│  log_dir={args.log_dir}, max_steps={args.max_steps}, kd_layer={args.kd_layer}                                                        \n│")
 print("│                                                                                                     │")
 if args.epochs == -1:
     print("│  Running INFINTE Training Loop. Please stop the script manually.                                    │")
@@ -83,7 +84,7 @@ if __name__ == "__main__":
         raise ValueError(f"Unknown dataset: {args.dataset}")
     
     # ========== Update the configuration ==========
-    _config["batch_size"] = 128
+    _config["batch_size"] = 256
     _config["per_gpu_batchsize"] = 16
     _config = copy.deepcopy(_config)
     pl.seed_everything(_config["seed"])
@@ -93,7 +94,7 @@ if __name__ == "__main__":
     dm = SmallMTDataModuleVILT(_config, dist=False, percentage=args.percentage)
     dm.setup("", is_random=True)
     train_dataloader = dm.train_dataloader()
-    # val_dataloader = dm.val_dataloader()
+    val_dataloader = dm.val_dataloader()
     # test_dataloader = dm.test_dataloader()
 
     print("Dataloader Length: ", len(train_dataloader))
@@ -105,15 +106,15 @@ if __name__ == "__main__":
     # =============== Initialize Full Precision Model ==============
     model_teacher = ViLTransformerSS(_config)
     model_student = copy.deepcopy(model_teacher)
-    model_student.kd_layer = 0
+    model_student.kd_layer = args.kd_layer
 
     model_teacher.eval()
 
     # Define the modeules to train
     modules_to_train = {'layer_names': ["scale_factor",
-                                        "transformer.blocks.0.mlp.fc1",
-                                        "transformer.blocks.0.mlp.fc2"],
-                        'kd_layer': 0}
+                                        f"transformer.blocks.{args.kd_layer}.mlp.fc1",
+                                        f"transformer.blocks.{args.kd_layer}.mlp.fc2"],
+                        'kd_layer': args.kd_layer}
 
     qat_quantizer = Int8DynActInt4WeightQATQuantizer()
     model_student = qat_quantizer.prepare(model_student, **modules_to_train)
@@ -122,7 +123,7 @@ if __name__ == "__main__":
     freeze_except_layers(model_student, modules_to_train['layer_names'])
 
     # Initialize the KD model
-    kd_model = KDLightningModule(student_model=model_student, teacher_model=model_teacher, alpha_kd=1, lr=args.learning_rate, config=_config, **modules_to_train)
+    kd_model = KDLightningModule(student_model=model_student, teacher_model=model_teacher, alpha_kd=args.alpha_kd, lr=args.learning_rate, config=_config, **modules_to_train)
 
     print("Model Scale Factor: ", model_student.scale_factor)
     # ========== Initialize the trainer for full precision ==========
@@ -168,7 +169,7 @@ if __name__ == "__main__":
         precision=_config["precision"],
         benchmark=True,
         deterministic=True,
-        max_epochs=args.epochs,
+        # max_epochs=args.epochs,
         max_steps=args.max_steps, # 25000,
         logger=logger,
         # callbacks=lr_callback,
@@ -185,7 +186,7 @@ if __name__ == "__main__":
 
     print("Starting Full Precision Training")
     # Train the model with the quantization-aware training (QAT) quantizer
-    trainer.fit(kd_model, train_dataloaders=train_dataloader)
+    trainer.fit(kd_model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # Store the weights after training before quantization
     fc2_weight_after_qat = get_module_by_path(model_student, modules_to_train['layer_names'][-1]).weight.clone()
