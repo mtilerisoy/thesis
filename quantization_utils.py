@@ -99,6 +99,33 @@ def get_module_by_path(model, path):
     
     return current_module
 
+def freeze_except_layers(model, layers_to_unfreeze_names):
+    """
+    Freezes all parameters of a PyTorch model except for the layers specified by their names.
+
+    Args:
+        model (nn.Module): The PyTorch model to freeze parameters in.
+        layers_to_unfreeze_names (list of str): A list of module names that should NOT be frozen.
+                                             Parameters in modules whose names contain these strings will be unfrozen.
+    """
+    for name, param in model.named_parameters():
+        freeze = True  # Initially assume we should freeze the parameter
+        for layer_name_to_unfreeze in layers_to_unfreeze_names:
+            if layer_name_to_unfreeze in name:
+                freeze = False  # Unfreeze if the name contains a layer to unfreeze
+                break  # No need to check other layer names if already unfrozen
+
+        if freeze:
+            param.requires_grad = False  # Freeze the parameter
+        else:
+            param.requires_grad = True   # Ensure it's unfrozen (explicitly set to True)
+
+    # Print which layers are frozen and unfrozen for verification
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"Layer: {name}, Frozen: {not param.requires_grad}")
+
+
 import os
 import pytorch_lightning as pl
 
