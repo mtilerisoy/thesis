@@ -7,18 +7,25 @@ from quantization_utils import init_trainer, get_quantization_config, print_size
 import torch
 from datetime import datetime
 from copy import deepcopy
-
-from torch.quantization import PlaceholderObserver, MinMaxObserver, QConfig, PerChannelMinMaxObserver
+import pytorch_lightning as pl
 
     
 import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run METER PTQ")
-    parser.add_argument('model', type=str, help='Model to use: vilt, meter')
-    parser.add_argument('task', type=str, help='Task to run: nlvr2, vqa')
-    parser.add_argument('precision', type=int, help='Precision to use: 4, 8')
-    # parser.add_argument('layer2quantize', type=str, help='Layer to quantize: transformer.patch_embed')
+    parser.add_argument('--model', type=str, default="meter", help='Model to use: vilt, meter')
+    parser.add_argument('--task', type=str, default="nlvr2_ood", help='Task to run: nlvr2, vqa')
+    parser.add_argument('--precision', type=int, default=2, help='Precision to use: 4, 8')
+    parser.add_argument('--layer2quantize', type=str, default="text_transformer.encoder", help='Layer to quantize: transformer.patch_embed')
     args = parser.parse_args()
+
+    print("┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐")
+    print("│                                                                                                     │")
+    print(f"│  Running with: model={args.model}, task={args.task}, precision={args.precision}                                   \n│")                              
+    print(f"│                                                                                                   \n│")
+    print(f"│  quantized module is: {args.layer2quantize}                                                              \n│")
+    print("│                                                                                                     │")
+    print("└─────────────────────────────────────────────────────────────────────────────────────────────────────┘")
 
     if "vilt" in args.model:
         from vilt.datamodules.multitask_datamodule import MTDataModule
@@ -59,7 +66,47 @@ if __name__ == '__main__':
     print("Model initialized")
 
     # Initialize the trainer
-    trainer = init_trainer(CONFIG, accelerator="cpu", num_devices=1)
+    # ========== Initialize the trainer for full precision ==========
+    CONFIG["exp_name"] = f"2-bit-quant-{args.model}"
+    CONFIG["log_dir"] = "experiments/quantization"
+    exp_name = f'{CONFIG["exp_name"]}'
+    os.makedirs(CONFIG["log_dir"], exist_ok=True)
+
+    logger = pl.loggers.TensorBoardLogger(
+        CONFIG["log_dir"],
+        name=f'{exp_name}_{CONFIG["load_path"].split("/")[-1][:-5]}',
+        default_hp_metric=False
+    )
+
+    num_gpus = (
+        CONFIG["num_gpus"]
+        if isinstance(CONFIG["num_gpus"], int)
+        else len(CONFIG["num_gpus"])
+    )
+
+    grad_steps = CONFIG["batch_size"] // (
+        CONFIG["per_gpu_batchsize"] * num_gpus * CONFIG["num_nodes"]
+    )
+
+    print("Gradient Accumulation Steps: ", grad_steps)
+
+    # =============== Testing Quantized Model ===============
+    trainer = pl.Trainer(
+        accelerator="cpu",
+        devices=1,
+        num_nodes=CONFIG["num_nodes"],
+        precision=CONFIG["precision"],
+        benchmark=True,
+        deterministic=True,
+        max_steps=1000,
+        logger=logger,
+        # callbacks=lr_callback,
+        log_every_n_steps=1,
+        accumulate_grad_batches=grad_steps,
+        enable_checkpointing=False,
+        fast_dev_run=CONFIG["fast_dev_run"],
+        val_check_interval=CONFIG["val_check_interval"],
+    )
     print("Trainer initialized")
     
     print(f"Initializing the quantizers using precision: {args.precision}")
@@ -71,39 +118,74 @@ if __name__ == '__main__':
     names, _ = zip(*list(model.named_modules()))
     
     # Quantize the model
-    # layer_to_quantize = args.layer2quantize
+    layer_to_quantize = args.layer2quantize
 
-    modules_to_quantize = [
-        "text_transformer.encoder.layer.2.output.dense",
-        "text_transformer.encoder.layer.2.intermediate.dense"
-        # "text_transformer.encoder.layer.3.output.dense",
-        # "text_transformer.encoder.layer.3.intermediate.dense"
-    ]
+    # Check if the layer to quantize is in the model
+    assert layer_to_quantize in names, f"Layer {layer_to_quantize} not found in the model"
 
-    # Initialize the dictionary of the quantization configuration
-    q_config_dict = dict()
+    if "embeddings" in layer_to_quantize:
+        quantization_config = embedding_layer_qconfig
 
-    # Assign the quantization configuration to the layers
-    for layer in modules_to_quantize:
-        q_config_dict[layer] = quantization_config
-
-    # Quantize the model dynamically
     model_dynamic = deepcopy(model)
+    
     torch.quantization.quantize_dynamic(
-        model_dynamic, q_config_dict, inplace=True
+        model_dynamic, {layer_to_quantize: quantization_config}, inplace=True
     )
+
+    # Print the size of the model
+    param_size = 0
+    for param in model_dynamic.parameters():
+        param_size += param.nelement() * param.element_size()
+    buffer_size = 0
+    for buffer in model_dynamic.buffers():
+        buffer_size += buffer.nelement() * buffer.element_size()
+
+    size_all_mb = (param_size + buffer_size) / 1024**2
+    print('model size: {:.3f}MB'.format(size_all_mb))
+
 
     # Accuracy Testing
     trainer.test(model_dynamic, datamodule=dm)
 
     print(f"Model Used: {args.model}")
     print(f"Task Used: {args.task}")
-    print_size_of_model(model_dynamic)
     print(f"Precision: {args.precision}")
-    print(f"Quantized Module: {modules_to_quantize}")
+    print(f"Quantized Block: {layer_to_quantize}")
+    print('model size: {:.3f}MB'.format(size_all_mb))
     print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
-    print(f"Used quantization config: {quantization_config}")
     print("===================================")
+
+    # modules_to_quantize = [
+    #     "text_transformer.encoder.layer.2.output.dense",
+    #     "text_transformer.encoder.layer.2.intermediate.dense"
+    #     # "text_transformer.encoder.layer.3.output.dense",
+    #     # "text_transformer.encoder.layer.3.intermediate.dense"
+    # ]
+
+    # # Initialize the dictionary of the quantization configuration
+    # q_config_dict = dict()
+
+    # # Assign the quantization configuration to the layers
+    # for layer in modules_to_quantize:
+    #     q_config_dict[layer] = quantization_config
+
+    # # Quantize the model dynamically
+    # model_dynamic = deepcopy(model)
+    # torch.quantization.quantize_dynamic(
+    #     model_dynamic, q_config_dict, inplace=True
+    # )
+
+    # # Accuracy Testing
+    # trainer.test(model_dynamic, datamodule=dm)
+
+    # print(f"Model Used: {args.model}")
+    # print(f"Task Used: {args.task}")
+    # print_size_of_model(model_dynamic)
+    # print(f"Precision: {args.precision}")
+    # print(f"Quantized Module: {modules_to_quantize}")
+    # print(f"Completed at: {datetime.now().strftime('%Y%m%d_%H%M')}")
+    # print(f"Used quantization config: {quantization_config}")
+    # print("===================================")
 
     # for i in range(12):
     #     # i += 6
