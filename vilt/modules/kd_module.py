@@ -13,7 +13,7 @@ class KDLightningModule(pl.LightningModule):
         self.alpha_kd = alpha_kd
         self.lr = lr
         self.T = T
-        self.kd_layer = kwargs.get("kd_layer", -1)
+        self.kd_layer = kwargs.get("kd_layer", 0)
 
         print(f"Applying KD to Layer: {self.kd_layer}")
 
@@ -148,6 +148,7 @@ class KDLightningModule(pl.LightningModule):
     
 
     def on_train_epoch_end(self):
+        self.log("Student scale_factor", self.student_model.scale_factor, prog_bar=True)
         vilt_utils.epoch_wrapup(self)
 
     def validation_step(self, batch, batch_idx):
