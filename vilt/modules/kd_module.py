@@ -36,10 +36,10 @@ class KDLightningModule(pl.LightningModule):
     def _register_hooks(self):
         """ Registers hooks to capture the fusion block outputs. """
         def student_hook(module, inp, out):
-            self.student_fusion_feats = out[0][:, 0]
+            self.student_fusion_feats = out[0] #[0][:, 0]
 
         def teacher_hook(module, inp, out):
-            self.teacher_fusion_feats = out[0][:, 0]
+            self.teacher_fusion_feats = out[0] #[0][:, 0]
 
         # Register hook on the last transformer block
         self.student_model.transformer.blocks[self.kd_layer].register_forward_hook(student_hook)
@@ -119,12 +119,12 @@ class KDLightningModule(pl.LightningModule):
         teacher_feats = self.teacher_fusion_feats.detach()
 
         # Normalize the features before computing KD loss
-        # teacher_feats = F.normalize(teacher_feats, dim=-1)
-        # student_feats = F.normalize(self.student_fusion_feats, dim=-1)
+        teacher_feats = F.normalize(teacher_feats, dim=-1)
+        student_feats = F.normalize(self.student_fusion_feats, dim=-1)
 
         # Compute Mean Squared Error (MSE) loss
-        # kd_loss = F.mse_loss(self.student_fusion_feats, teacher_feats)
-        kd_loss = F.cosine_similarity(self.student_fusion_feats, teacher_feats, dim=-1).mean()
+        kd_loss = F.mse_loss(self.student_fusion_feats, teacher_feats)
+        # kd_loss = F.cosine_similarity(self.student_fusion_feats, teacher_feats, dim=-1).mean()
 
         return kd_loss
     
@@ -150,6 +150,7 @@ class KDLightningModule(pl.LightningModule):
 
     def on_train_epoch_end(self):
         vilt_utils.epoch_wrapup(self)
+        self.log("Student scale_factor", self.student_model.scale_factor)
 
     def validation_step(self, batch, batch_idx):
         vilt_utils.set_task(self)
