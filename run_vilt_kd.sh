@@ -57,8 +57,9 @@ if [ -z "${gpu}" ]; then
 fi
 
 exp_folder="./experiments/logs"
-output_file="${exp_folder}/output.txt"
-error_file="${exp_folder}/error.txt"
+
+output_file="${exp_folder}/output_lr${lr}_scale.txt"
+error_file="${exp_folder}/error_lr${lr}_scale.txt"
 
 mkdir -p "${exp_folder}"
 

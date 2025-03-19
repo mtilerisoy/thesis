@@ -5,8 +5,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 import os
 # Limit the number of CPUs
-os.environ["OMP_NUM_THREADS"] = "9"  # Set this to the number of CPUs you want to use
-os.environ["MKL_NUM_THREADS"] = "9"  # Set this to the number of CPUs you want to use
+os.environ["OMP_NUM_THREADS"] = "8"  # Set this to the number of CPUs you want to use
+os.environ["MKL_NUM_THREADS"] = "8"  # Set this to the number of CPUs you want to use
 
 import copy
 import torch
@@ -25,7 +25,7 @@ from torchao.quantization.prototype.qat import Int8DynActInt4WeightQATQuantizer
 import argparse
 # Create an ArgumentParser object
 parser = argparse.ArgumentParser(description="Custom QAT Script")
-parser.add_argument("-e", "--epochs",                       default=2,                  help="Number of epochs to train the model")
+parser.add_argument("-e", "--epochs",           type=int,   default=2,                  help="Number of epochs to train the model")
 parser.add_argument("-l", "--learning_rate",    type=float, default=1e-5,               help="Learning rate for the optimizer")
 parser.add_argument("-d", "--dataset",          type=str,   default="nlvr2_ood",        help="Dataset to train the model on")
 parser.add_argument("-p", "--percentage",       type=float, default=0.5,               help="Percentage of the dataset to use for fine-tuning")
@@ -93,9 +93,9 @@ if __name__ == "__main__":
     # dm = MTDataModule(_config, dist=False)
     dm = SmallMTDataModuleVILT(_config, dist=False, percentage=args.percentage)
     dm.setup("", is_random=True)
-    train_dataloader = dm.train_dataloader()
+    # train_dataloader = dm.train_dataloader()
     val_dataloader = dm.val_dataloader()
-    # test_dataloader = dm.test_dataloader()
+    train_dataloader = dm.test_dataloader()
 
     print("Dataloader Length: ", len(train_dataloader))
 
@@ -107,7 +107,6 @@ if __name__ == "__main__":
     model_teacher = ViLTransformerSS(_config)
     model_student = copy.deepcopy(model_teacher)
     model_student.kd_layer = args.kd_layer
-
     model_teacher.eval()
 
     # Define the modeules to train
@@ -122,6 +121,9 @@ if __name__ == "__main__":
     # Freeze all layers except for the specified ones
     freeze_except_layers(model_student, modules_to_train['layer_names'])
 
+    isTrainable = model_student.scale_factor.requires_grad
+    print(f"Is the scale factor trainable: {isTrainable}")
+
     # Initialize the KD model
     kd_model = KDLightningModule(student_model=model_student, teacher_model=model_teacher, alpha_kd=args.alpha_kd, lr=args.learning_rate, config=_config, **modules_to_train)
 
@@ -134,7 +136,7 @@ if __name__ == "__main__":
 
     logger = pl.loggers.TensorBoardLogger(
         _config["log_dir"],
-        name=f'{exp_name}_alpha{args.alpha_kd}_lr{args.learning_rate}_epochs{args.epochs}_steps{args.max_steps}_kd_layer0_from_{_config["load_path"].split("/")[-1][:-5]}',
+        name=f'{exp_name}_scaleTrainable{isTrainable}_alpha{args.alpha_kd}_lr{args.learning_rate}_epochs{args.epochs}_steps{args.max_steps}_kd_layer0_from_{_config["load_path"].split("/")[-1][:-5]}',
         default_hp_metric=False
     )
 
@@ -164,13 +166,13 @@ if __name__ == "__main__":
     # =============== Testing Quantized Model ===============
     trainer = pl.Trainer(
         accelerator="gpu",
-        devices=2,
+        devices=[args.gpu],
         num_nodes=_config["num_nodes"],
         precision=_config["precision"],
         benchmark=True,
         deterministic=True,
-        # max_epochs=args.epochs,
-        max_steps=args.max_steps, # 25000,
+        max_epochs=args.epochs,
+        max_steps=-1,#args.max_steps, # 25000,
         logger=logger,
         # callbacks=lr_callback,
         log_every_n_steps=1,
@@ -205,20 +207,18 @@ if __name__ == "__main__":
     print("Model Scale Factor after training: \n", model_student.scale_factor)
     print("============================================================")
 
-    raise ValueError("Stopping the script here after QAT before inference")
 
-
-
+    # =============== Testing Quantized Model ===============
     trainer = pl.Trainer(
         accelerator="cpu",
         devices=1,
         num_nodes=_config["num_nodes"],
         precision=_config["precision"],
-        # strategy="ddp",
         benchmark=True,
-        deterministic=False,
-        max_epochs=args.epochs,
-        max_steps=50000,
+        deterministic=True,
+        max_steps=args.max_steps,
+        logger=logger,
+        log_every_n_steps=1,
         accumulate_grad_batches=grad_steps,
         enable_checkpointing=False,
         fast_dev_run=_config["fast_dev_run"],
