@@ -44,7 +44,7 @@ if __name__ == "__main__":
         raise ValueError(f"Unknown dataset: {CLI.DATASET}")
     
     # ========== Update the configuration ==========
-    _config["batch_size"] = 256
+    _config["batch_size"] = 32
     _config["per_gpu_batchsize"] = 16
     _config = copy.deepcopy(_config)
     pl.seed_everything(_config["seed"])
@@ -53,9 +53,9 @@ if __name__ == "__main__":
     # dm = MTDataModule(_config, dist=False)
     dm = SmallMTDataModuleVILT(_config, dist=False, percentage=CLI.PERCENTAGE)
     dm.setup("", is_random=True)
-    # train_dataloader = dm.train_dataloader()
-    # val_dataloader = dm.val_dataloader()
-    train_dataloader = dm.test_dataloader()
+    train_dataloader = dm.train_dataloader()
+    val_dataloader = dm.val_dataloader()
+    # test_dataloader = dm.test_dataloader()
 
     print("Dataloader Length: ", len(train_dataloader))
 
@@ -130,8 +130,7 @@ if __name__ == "__main__":
 
     print("Starting Full Precision Training")
     # Train the model with the quantization-aware training (QAT) quantizer
-    # trainer.fit(kd_model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
-    trainer.fit(kd_model, train_dataloaders=train_dataloader)
+    trainer.fit(kd_model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # Store the weights after training before quantization
     fc2_weight_after_qat = get_module_by_path(model_student, modules_to_train['layer_names'][-1]).weight.clone()
