@@ -36,14 +36,28 @@ class KDLightningModule(pl.LightningModule):
     def _register_hooks(self):
         """ Registers hooks to capture the fusion block outputs. """
         def student_hook(module, inp, out):
-            self.student_fusion_feats = out[0]
+            # # For individual layer
+            # self.student_fusion_feats = out[0][:, 0] # Select the CLS token
+            # self.student_fusion_feats = out[0]
+            
+            # For pooler layer
+            self.student_fusion_feats = out[:, 0] # Select the CLS token
 
         def teacher_hook(module, inp, out):
-            self.teacher_fusion_feats = out[0]
+            # # For individual layer
+            # self.teacher_fusion_feats = out[0][:, 0] # Select the CLS token
+            # self.teacher_fusion_feats = out[0]
 
-        # Register hook on the last transformer block
-        self.student_model.text_transformer.encoder.layer[self.kd_layer].register_forward_hook(student_hook)
-        self.teacher_model.text_transformer.encoder.layer[self.kd_layer].register_forward_hook(teacher_hook)
+            # For pooler layer
+            self.teacher_fusion_feats = out[:, 0] # Select the CLS token
+
+        # # Register hook on the last transformer block
+        # self.student_model.text_transformer.encoder.layer[self.kd_layer].register_forward_hook(student_hook)
+        # self.teacher_model.text_transformer.encoder.layer[self.kd_layer].register_forward_hook(teacher_hook)
+
+        # Pooler layers
+        self.student_model.cross_modal_image_pooler.dense.register_forward_hook(student_hook)
+        self.student_model.cross_modal_image_pooler.dense.register_forward_hook(teacher_hook)
 
     def compute_nlvr2_loss(self, batch):
         """ Compute NLVR2 classification loss """
@@ -121,9 +135,11 @@ class KDLightningModule(pl.LightningModule):
         # Normalize the features before computing KD loss
         # teacher_feats = F.normalize(teacher_feats, dim=-1)
         # student_feats = F.normalize(self.student_fusion_feats, dim=-1)
+        # kd_loss = F.cosine_similarity(student_feats, teacher_feats, dim=-1).mean()
 
         # Compute Mean Squared Error (MSE) loss
-        kd_loss = F.mse_loss(self.student_fusion_feats, teacher_feats)
+        # kd_loss = F.mse_loss(self.student_fusion_feats, teacher_feats)
+        kd_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats, teacher_feats, dim=-1))
 
         return kd_loss
     
@@ -139,6 +155,7 @@ class KDLightningModule(pl.LightningModule):
         kd_loss = self.compute_kd_loss(batch)
 
         total_loss = nlvr2_loss + self.alpha_kd * kd_loss
+        # total_loss = self.alpha_kd * kd_loss
 
         self.log("train_nlvr2_loss", nlvr2_loss, prog_bar=True)
         self.log("train_kd_loss", kd_loss, prog_bar=True)
@@ -149,6 +166,7 @@ class KDLightningModule(pl.LightningModule):
 
     def on_train_epoch_end(self):
         meter_utils.epoch_wrapup(self)
+        self.log("Student scale_factor", self.student_model.scale_factor)
 
     def validation_step(self, batch, batch_idx):
         meter_utils.set_task(self)
