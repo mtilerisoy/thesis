@@ -27,37 +27,52 @@ class KDLightningModule(pl.LightningModule):
             param.requires_grad = False
 
         # Placeholders for fusion layer outputs
-        self.student_fusion_feats = None
-        self.teacher_fusion_feats = None
+        self.student_fusion_feats_mlp2 = None
+        self.teacher_fusion_feats_mlp2 = None
+        self.student_fusion_feats_mlp3 = None
+        self.teacher_fusion_feats_mlp3 = None
+        self.student_fusion_feats_pooler = None
+        self.teacher_fusion_feats_pooler = None
 
         # Register forward hooks for both student and teacher
         self._register_hooks()
 
     def _register_hooks(self):
         """ Registers hooks to capture the fusion block outputs. """
-        def student_hook(module, inp, out):
-            # # For individual layer
-            # self.student_fusion_feats = out[0][:, 0] # Select the CLS token
-            # self.student_fusion_feats = out[0]
-            
-            # For pooler layer
-            self.student_fusion_feats = out[:, 0] # Select the CLS token
+        def student_hook_mlp2(module, inp, out):
+            # MLP layer CLS token
+            self.student_fusion_feats_mlp2 = out[0][:, 0]
 
-        def teacher_hook(module, inp, out):
-            # # For individual layer
-            # self.teacher_fusion_feats = out[0][:, 0] # Select the CLS token
-            # self.teacher_fusion_feats = out[0]
+        def teacher_hook_mlp2(module, inp, out):
+            # MLP layer CLS token
+            self.teacher_fusion_feats_mlp2 = out[0][:, 0]
 
-            # For pooler layer
-            self.teacher_fusion_feats = out[:, 0] # Select the CLS token
+        def student_hook_mlp3(module, inp, out):
+            # MLP layer CLS token
+            self.student_fusion_feats_mlp3 = out[0][:, 0]
 
-        # # Register hook on the last transformer block
-        # self.student_model.text_transformer.encoder.layer[self.kd_layer].register_forward_hook(student_hook)
-        # self.teacher_model.text_transformer.encoder.layer[self.kd_layer].register_forward_hook(teacher_hook)
+        def teacher_hook_mlp3(module, inp, out):
+            # MLP layer CLS token
+            self.teacher_fusion_feats_mlp3 = out[0][:, 0]
+        
+        def student_hook_pooler(module, inp, out):
+            # Pooler layer CLS token
+            self.student_fusion_feats_pooler = out[:, 0]
+        
+        def teacher_hook_pooler(module, inp, out):
+            # Pooler layer CLS token
+            self.teacher_fusion_feats_pooler = out[:, 0]
+
+        # # # Register hook on the last transformer block
+        # self.student_model.text_transformer.encoder.layer[2].register_forward_hook(student_hook_mlp2)
+        # self.teacher_model.text_transformer.encoder.layer[2].register_forward_hook(teacher_hook_mlp2)
+
+        # self.student_model.text_transformer.encoder.layer[3].register_forward_hook(student_hook_mlp3)
+        # self.teacher_model.text_transformer.encoder.layer[3].register_forward_hook(teacher_hook_mlp3)
 
         # Pooler layers
-        self.student_model.cross_modal_image_pooler.dense.register_forward_hook(student_hook)
-        self.student_model.cross_modal_image_pooler.dense.register_forward_hook(teacher_hook)
+        self.student_model.cross_modal_text_pooler.dense.register_forward_hook(student_hook_pooler)
+        self.student_model.cross_modal_text_pooler.dense.register_forward_hook(teacher_hook_pooler)
 
     def compute_nlvr2_loss(self, batch):
         """ Compute NLVR2 classification loss """
@@ -126,11 +141,13 @@ class KDLightningModule(pl.LightningModule):
         self.student_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=1)
         self.student_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=2)
 
-        if self.student_fusion_feats is None or self.teacher_fusion_feats is None:
-            raise RuntimeError("Fusion layer hooks did not capture outputs!")
+        # if self.student_fusion_feats_mlp2 is None or self.teacher_fusion_feats_mlp2 is None:
+        #     raise RuntimeError("Fusion layer hooks did not capture outputs!")
 
         # Detach the teacher features to avoid backpropagating through it
-        teacher_feats = self.teacher_fusion_feats.detach()
+        # teacher_feats_mlp2 = self.teacher_fusion_feats_mlp2.detach()
+        # teacher_feats_mlp3 = self.teacher_fusion_feats_mlp3.detach()
+        teacher_feats_pooler = self.teacher_fusion_feats_pooler.detach()
 
         # Normalize the features before computing KD loss
         # teacher_feats = F.normalize(teacher_feats, dim=-1)
@@ -139,7 +156,11 @@ class KDLightningModule(pl.LightningModule):
 
         # Compute Mean Squared Error (MSE) loss
         # kd_loss = F.mse_loss(self.student_fusion_feats, teacher_feats)
-        kd_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats, teacher_feats, dim=-1))
+        # kd_loss_mlp2 = -torch.mean(F.cosine_similarity(self.student_fusion_feats_mlp2, teacher_feats_mlp2, dim=-1))
+        # kd_loss_mlp3 = -torch.mean(F.cosine_similarity(self.student_fusion_feats_mlp3, teacher_feats_mlp3, dim=-1))
+        kd_loss_pooler = -torch.mean(F.cosine_similarity(self.student_fusion_feats_pooler, teacher_feats_pooler, dim=-1))
+        # kd_loss = (kd_loss_mlp2 + kd_loss_mlp3 + kd_loss_pooler)/3.0
+        kd_loss = kd_loss_pooler
 
         return kd_loss
     
@@ -166,7 +187,6 @@ class KDLightningModule(pl.LightningModule):
 
     def on_train_epoch_end(self):
         meter_utils.epoch_wrapup(self)
-        self.log("Student scale_factor", self.student_model.scale_factor)
 
     def validation_step(self, batch, batch_idx):
         meter_utils.set_task(self)

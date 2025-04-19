@@ -15,7 +15,7 @@ import pytorch_lightning as pl
 from meter.modules import METERTransformerSS
 from meter.modules.kd_module import KDLightningModule
 
-from quantization_utils import SmallMTDataModuleMETER, get_module_by_path, quantize_modules, freeze_except_layers
+from quantization_utils import SmallMTDataModuleMETER, get_module_by_path, quantize_modules, freeze_except_layers, get_quantization_config
 import configs
 from torchao.quantization.prototype.qat import Int8DynActInt4WeightQATQuantizer
 import run_meter_kd_config as CLI
@@ -42,17 +42,17 @@ if __name__ == "__main__":
     
     # ========== Update the configuration ==========
     _config["batch_size"] = 32
-    _config["per_gpu_batchsize"] = 8
+    _config["per_gpu_batchsize"] = 2
     _config = copy.deepcopy(_config)
     pl.seed_everything(_config["seed"])
 
     # ========== Initialize the datamodule for pl.Trainer ==========
     # dm = MTDataModule(_config, dist=False)
-    dm = SmallMTDataModuleMETER(_config, dist=False, percentage=CLI.PERCENTAGE)
+    dm = SmallMTDataModuleMETER(_config, dist=False, percentage=0.25)
     dm.setup("", is_random=True)
-    # train_dataloader = dm.train_dataloader()
-    val_dataloader = dm.val_dataloader()
-    train_dataloader = dm.test_dataloader()
+    train_dataloader = dm.train_dataloader()
+    # val_dataloader = dm.val_dataloader()
+    # train_dataloader = dm.test_dataloader()
 
     print("Dataloader Length: ", len(train_dataloader))
 
@@ -73,12 +73,12 @@ if __name__ == "__main__":
     model_student = qat_quantizer.prepare(model_student, **modules_to_train)
     
     # Freeze all layers except for the specified ones
-    freeze_except_layers(model_student, modules_to_train['layer_names'])
+    # freeze_except_layers(model_student, modules_to_train['layer_names'])
+    
 
     # Initialize the KD model
     kd_model = KDLightningModule(student_model=model_student, teacher_model=model_teacher, alpha_kd=CLI.ALPHA_KD, lr=CLI.LEARNING_RATE, config=_config, **modules_to_train)
 
-    print("Model Scale Factor: ", model_student.scale_factor)
     # ========== Initialize the trainer for full precision ==========
     _config["exp_name"] = CLI.EXP_NAME
     _config["log_dir"] = CLI.LOG_DIR
@@ -132,20 +132,25 @@ if __name__ == "__main__":
     # Store the weights after training before quantization
     fc2_weight_after_qat = get_module_by_path(model_student, modules_to_train['layer_names'][-1]).weight.clone()
 
-    # Quantize the model
-    model_quant = quantize_modules(model_student, modules_to_train['layer_names'], 4)
+    # # Quantize the model
+    # model_quant = quantize_modules(model_student, modules_to_train['layer_names'], 4)
 
-    # Store the weights after quantization
-    fc2_weight_after_dyn_quant = get_module_by_path(model_quant, modules_to_train['layer_names'][-1]).weight().int_repr().clone()
+    # Quantize the model dynamically
+    dynamic_ptq_config, embedding_q_config = get_quantization_config(precision=4)
+    model_quant = torch.quantization.quantize_dynamic(
+        kd_model.student_model, {torch.nn.Linear: dynamic_ptq_config, torch.nn.Embedding: embedding_q_config}, inplace=True
+    )
 
-    # Print the tensor information
-    print("============================================================")
-    print(f"Min, Max and Mean of the ORIGINAL WEIGHTS: \n{torch.min(fc2_weight)}, {torch.max(fc2_weight)}, mean: {torch.mean(fc2_weight)}")
-    print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_qat)}, {torch.max(fc2_weight_after_qat)}, mean: {torch.mean(fc2_weight_after_qat)}")
-    print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_dyn_quant)}, {torch.max(fc2_weight_after_dyn_quant)}")
-    print("Model Scale Factor after training: \n", model_student.scale_factor)
-    print("============================================================")
 
+    # # Store the weights after quantization
+    # fc2_weight_after_dyn_quant = get_module_by_path(model_quant, modules_to_train['layer_names'][-1]).weight().int_repr().clone()
+
+    # # Print the tensor information
+    # print("============================================================")
+    # print(f"Min, Max and Mean of the ORIGINAL WEIGHTS: \n{torch.min(fc2_weight)}, {torch.max(fc2_weight)}, mean: {torch.mean(fc2_weight)}")
+    # print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_qat)}, {torch.max(fc2_weight_after_qat)}, mean: {torch.mean(fc2_weight_after_qat)}")
+    # print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_dyn_quant)}, {torch.max(fc2_weight_after_dyn_quant)}")
+    # print("============================================================")
 
     # =============== Testing Quantized Model ===============
     trainer = pl.Trainer(
@@ -169,6 +174,7 @@ if __name__ == "__main__":
     dm = SmallMTDataModuleMETER(_config, dist=False, percentage=1)
     dm.setup("test", is_random=True)
     test_dataloader = dm.test_dataloader()
+    model_quant.eval()
 
 
-    trainer.test(model_student, dataloaders=test_dataloader)
+    trainer.test(model_quant, dataloaders=test_dataloader)

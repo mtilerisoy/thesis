@@ -16,7 +16,7 @@ from vilt.config import ex
 from vilt.modules import ViLTransformerSS
 from vilt.datamodules.multitask_datamodule import MTDataModule as MTDataModuleVILT
 
-from quantization_utils import SmallMTDataModuleVILT, get_module_by_path, quantize_modules, freeze_except_layers
+from quantization_utils import SmallMTDataModuleVILT, get_module_by_path, quantize_modules, freeze_except_layers, get_quantization_config
 import configs
 from vilt.modules.kd_module import KDLightningModule
 from torchao.quantization.prototype.qat import Int8DynActInt4WeightQATQuantizer
@@ -40,27 +40,32 @@ if __name__ == "__main__":
         _config = configs.vilt_config_nlvr2
     elif CLI.DATASET == "nlvr2_original":
         _config = configs.vilt_config_nlvr2_original
+    elif CLI.DATASET == "vqa_original":
+        # _config = configs.vilt_config_vqav2_original
+        _config = configs.vilt_config_vqav2
     else:
         raise ValueError(f"Unknown dataset: {CLI.DATASET}")
     
     # ========== Update the configuration ==========
     _config["batch_size"] = 32
-    _config["per_gpu_batchsize"] = 16
+    _config["per_gpu_batchsize"] = 8
     _config = copy.deepcopy(_config)
     pl.seed_everything(_config["seed"])
 
     # ========== Initialize the datamodule for pl.Trainer ==========
     # dm = MTDataModule(_config, dist=False)
-    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=CLI.PERCENTAGE)
+    dm = SmallMTDataModuleVILT(_config, dist=False, num_samples=5, start_idx=103)
     dm.setup("", is_random=True)
     train_dataloader = dm.train_dataloader()
     val_dataloader = dm.val_dataloader()
-    # test_dataloader = dm.test_dataloader()
+    test_dataloader = dm.test_dataloader()
 
     print("Dataloader Length: ", len(train_dataloader))
+    print("Dataloader Length: ", len(val_dataloader))
+    print("Dataloader Length: ", len(test_dataloader))
 
-    print(f"Length of the first batch: {len(next(iter(train_dataloader))['answers'])}")
-    print(f"Shape of the first batch: {next(iter(train_dataloader))['image_0'][0].shape}")
+    # print(f"Length of the first batch: {len(next(iter(train_dataloader))['answers'])}")
+    # print(f"Shape of the first batch: {next(iter(train_dataloader))['image_0'][0].shape}")
 
 
     # =============== Initialize Full Precision Model ==============
@@ -76,12 +81,11 @@ if __name__ == "__main__":
     model_student = qat_quantizer.prepare(model_student, **modules_to_train)
     
     # Freeze all layers except for the specified ones
-    freeze_except_layers(model_student, modules_to_train['layer_names'])
+    # freeze_except_layers(model_student, modules_to_train['layer_names'])
 
     # Initialize the KD model
     kd_model = KDLightningModule(student_model=model_student, teacher_model=model_teacher, alpha_kd=CLI.ALPHA_KD, lr=CLI.LEARNING_RATE, config=_config, **modules_to_train)
 
-    print("Model Scale Factor: ", model_student.scale_factor)
     # ========== Initialize the trainer for full precision ==========
     _config["exp_name"] = CLI.EXP_NAME
     _config["log_dir"] = CLI.LOG_DIR
@@ -127,33 +131,39 @@ if __name__ == "__main__":
     # Store the initial weights before training
     fc2_weight = get_module_by_path(model_student, modules_to_train['layer_names'][-1]).weight.clone()
     
-
     print("Starting Full Precision Training")
     # Train the model with the quantization-aware training (QAT) quantizer
-    trainer.fit(kd_model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+    # trainer.fit(kd_model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+    # trainer.fit(kd_model, train_dataloaders=train_dataloader)
 
     # Store the weights after training before quantization
     fc2_weight_after_qat = get_module_by_path(model_student, modules_to_train['layer_names'][-1]).weight.clone()
 
     # Quantize the model
-    model_quant = quantize_modules(model_student, modules_to_train['layer_names'], 4)
+    # model_quant = quantize_modules(model_student, modules_to_train['layer_names'], 4)
 
-    # Store the weights after quantization
-    fc2_weight_after_dyn_quant = get_module_by_path(model_quant, modules_to_train['layer_names'][-1]).weight().int_repr().clone()
+    # # Quantize the model dynamically
+    dynamic_ptq_config, embedding_q_config = get_quantization_config(precision=4)
+    model_quant = torch.quantization.quantize_dynamic(
+        kd_model.student_model, {torch.nn.Linear: dynamic_ptq_config, torch.nn.Embedding: embedding_q_config}, inplace=True
+    )
 
-    # Print the tensor information
-    print("============================================================")
-    print(f"Min, Max and Mean of the ORIGINAL WEIGHTS: \n{torch.min(fc2_weight)}, {torch.max(fc2_weight)}, mean: {torch.mean(fc2_weight)}")
-    print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_qat)}, {torch.max(fc2_weight_after_qat)}, mean: {torch.mean(fc2_weight_after_qat)}")
-    print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_dyn_quant)}, {torch.max(fc2_weight_after_dyn_quant)}")
-    print("Model Scale Factor after training: \n", model_student.scale_factor)
-    print("============================================================")
+    # # Store the weights after quantization
+    # fc2_weight_after_dyn_quant = get_module_by_path(model_quant, modules_to_train['layer_names'][-1]).weight().int_repr().clone()
+
+    # # Print the tensor information
+    # print("============================================================")
+    # print(f"Min, Max and Mean of the ORIGINAL WEIGHTS: \n{torch.min(fc2_weight)}, {torch.max(fc2_weight)}, mean: {torch.mean(fc2_weight)}")
+    # print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_qat)}, {torch.max(fc2_weight_after_qat)}, mean: {torch.mean(fc2_weight_after_qat)}")
+    # print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_dyn_quant)}, {torch.max(fc2_weight_after_dyn_quant)}")
+    # print("============================================================")
 
 
     # =============== Testing Quantized Model ===============
     trainer = pl.Trainer(
         accelerator="cpu",
         devices=1,
+        # strategy="ddp",
         num_nodes=_config["num_nodes"],
         precision=_config["precision"],
         benchmark=True,
@@ -167,11 +177,18 @@ if __name__ == "__main__":
         val_check_interval=_config["val_check_interval"],
     )
 
-    # Initalize the ood dataset
-    _config = configs.vilt_config_nlvr2
-    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=1)
+    # # Initalize the ood dataset
+    _config = configs.vilt_config_vqav2
+    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=0.99)
     dm.setup("test", is_random=True)
+    train_dataloader = dm.train_dataloader()
+    val_dataloader = dm.val_dataloader()
     test_dataloader = dm.test_dataloader()
+    model_quant.eval()
+    model_teacher.eval()
 
+    model_quant.datamodule = dm
+    model_teacher.datamodule = dm
 
-    trainer.test(model_student, dataloaders=test_dataloader)
+    # trainer.test(model_teacher, dataloaders=test_dataloader)
+    trainer.test(model_quant, dataloaders=test_dataloader)

@@ -303,8 +303,6 @@ def compute_vqa(pl_module, batch):
     infer = pl_module.infer(batch, mask_text=False, mask_image=False)
     vqa_logits = pl_module.vqa_classifier(infer["cls_feats"])
 
-    vqa_logits = pl_module.dequant(vqa_logits)
-
     vqa_targets = torch.zeros(
         len(vqa_logits), pl_module.hparams.config["vqav2_label_size"]
     ).to(pl_module.device)
@@ -583,14 +581,18 @@ def init_weights(module):
 def vqa_test_step(pl_module, batch, output):
     # Modify the id2answer definition to use the ood_vqa dataset
     id2answer = (
-        pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].id2answer
-        if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts
-        else pl_module.trainer.datamodule.dm_dicts["ood_vqa"].id2answer
-        if "ood_vqa" in pl_module.trainer.datamodule.dm_dicts
-        else pl_module.trainer.datamodule.dm_dicts["vqa"].id2answer
+        # pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].id2answer
+        # if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts
+        # else pl_module.trainer.datamodule.dm_dicts["ood_vqa"].id2answer
+        # if "ood_vqa" in pl_module.trainer.datamodule.dm_dicts
+        # else pl_module.trainer.datamodule.dm_dicts["vqa"].id2answer
+        pl_module.datamodule.dm_dicts["vqa_trainval"].id2answer
+        if "vqa_trainval" in pl_module.datamodule.dm_dicts
+        else pl_module.datamodule.dm_dicts["ood_vqa"].id2answer
+        if "ood_vqa" in pl_module.datamodule.dm_dicts
+        else pl_module.datamodule.dm_dicts["vqa"].id2answer
     )
     vqa_logits = output["vqa_logits"]
-    vqa_logits = pl_module.dequant(vqa_logits)
     vqa_preds = vqa_logits.argmax(dim=-1)
     vqa_preds = [id2answer[pred.item()] for pred in vqa_preds]
     questions = batch["text"]
@@ -601,11 +603,16 @@ def vqa_test_step(pl_module, batch, output):
     
     # Get the question id and correct answer pairs from the datamodule
     qid_ans = (
-        pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].qid_ans_pairs
-        if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts
-        else pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
-        if "ood_vqa" in pl_module.trainer.datamodule.dm_dicts
-        else pl_module.trainer.datamodule.dm_dicts["vqa"].qid_ans_pairs
+        # pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].qid_ans_pairs
+        # if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts
+        # else pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
+        # if "ood_vqa" in pl_module.trainer.datamodule.dm_dicts
+        # else pl_module.trainer.datamodule.dm_dicts["vqa"].qid_ans_pairs
+        pl_module.datamodule.dm_dicts["vqa_trainval"].qid_ans_pairs
+        if "vqa_trainval" in pl_module.datamodule.dm_dicts
+        else pl_module.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
+        if "ood_vqa" in pl_module.datamodule.dm_dicts
+        else pl_module.datamodule.dm_dicts["vqa"].qid_ans_pairs
     )
 
     # Convert the list of tuples to a list of dictionaries
@@ -626,7 +633,8 @@ def arc_test_step(pl_module, batch, output):
 
 
 def vqa_test_wrapup(outs, model_name):
-    rank = torch.distributed.get_rank()
+    # rank = torch.distributed.get_rank()
+    rank=0
     qids, preds = list(), list()
     for out in outs:
         qids += out["qids"]
@@ -638,7 +646,7 @@ def vqa_test_wrapup(outs, model_name):
     with open(f"vqa_submit_{rank}.json", "w") as fp:
         json.dump(rets, fp, indent=4)
 
-    torch.distributed.barrier()
+    # torch.distributed.barrier()
 
     if rank == 0:
         jsons = list()
@@ -654,7 +662,7 @@ def vqa_test_wrapup(outs, model_name):
         with open(f"result/vqa_submit_{model_name}_{current_time}.json", "w") as fp:
             json.dump(jsons, fp, indent=4)
 
-    torch.distributed.barrier()
+    # torch.distributed.barrier()
     os.remove(f"vqa_submit_{rank}.json")
 
 
