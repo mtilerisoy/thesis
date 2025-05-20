@@ -1,124 +1,10 @@
 # Dataset Preparation
-We utilize seven datsets: Google Conceptual Captions (GCC), Stony Brook University Captions (SBU), Visual Genome (VG), COCO Captions (COCO), Flickr 30K Captions (F30K), Visual Question Answering v2 (VQAv2), and Natural Language for Visual Reasoning 2 (NLVR2).
+We utilize two in-domain datsets: Visual Question Answering v2 (VQAv2), and Natural Language for Visual Reasoning 2 (NLVR2), and one out-of-distribution dataset: VLUE benchmark.
 
 We do not distribute datasets because of the license issue.
 Please download the datasets by yourself.
-We use `pyarrow` to serialize the datasets, conversion scripts are located in `vilt/utils/write_*.py`.
-Please organize the datasets as follows and run `make_arrow` functions to convert the dataset to pyarrow binary file.
-
-## GCC
-https://ai.google.com/research/ConceptualCaptions/download
-
-GCC provides tuples of image url and caption, note that a quite portion of the urls are unaccessible now.
-Write your own download script and organize the dataset as following structure.
-
-    root
-    ├── images_train            
-    │   ├── 0000                # First four letters of image name
-    │   │   ├── 0000000         # Image Binary
-    │   │   ├── 0000001      
-    │   │   └── ...
-    │   ├── 0001              
-    │   │   ├── 0001000      
-    │   │   ├── 0001001      
-    │   │   └── ...          
-    │   └── ...          
-    ├── images_val          
-    │   ├── 0000              
-    │   │   └── ...
-    │   └── ...          
-    ├── train_annot.json        # List of (image_file_path, caption) tuple
-    └── val_annot.json          # List of (image_file_path, caption) tuple
-
-```python
-from vilt.utils.write_conceptual_caption import make_arrow
-make_arrow(root, arrows_root)
-```
-
-## SBU
-http://www.cs.virginia.edu/~vicente/sbucaptions/
-
-Similar to GCC, SBU also provides tuples of image url and caption, and also a quite portion of the urls are unaccessible now.
-Write your own download script and organize the dataset as following structure.
-
-    root
-    ├── images_train            
-    │   ├── 0000                # First four letters of image name
-    │   │   ├── 0000000         # Image Binary
-    │   │   ├── 0000001      
-    │   │   └── ...
-    │   ├── 0001              
-    │   │   ├── 0001000      
-    │   │   ├── 0001001      
-    │   │   └── ...          
-    │   └── ...          
-    └── annot.json              # List of (image_file_path, caption) tuple
-
-```python
-from vilt.utils.write_sbu import make_arrow
-make_arrow(root, arrows_root)
-```
-
-## VG
-http://visualgenome.org/api/v0/api_home.html
-
-Download [image part1](https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip), [image part2](https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip) and [region descriptions](http://visualgenome.org/static/data/dataset/region_descriptions.json.zip)
-
-    root
-    ├── images            
-    │   ├── VG_100K                  
-    │   │   ├── 10.jpg        
-    │   │   ├── 107899.jpg      
-    │   │   └── ...
-    │   ├── VG_100K_2              
-    │   │   ├── 1.jpg      
-    │   │   ├── 100.jpg      
-    │   │   └── ...          
-    │   └── ...          
-    └── annotations         
-        └── region_descriptions.json
-
-```python
-from vilt.utils.write_vg import make_arrow
-make_arrow(root, arrows_root)
-```
-
-## COCO
-https://cocodataset.org/#download
-
-Download [2014 train images](http://images.cocodataset.org/zips/train2014.zip), [2014 val images](http://images.cocodataset.org/zips/val2014.zip) and [karpathy split](https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip)
-
-    root
-    ├── train2014            
-    │   ├── COCO_train2014_000000000009.jpg                
-    |   └── ...
-    ├── val2014              
-    |   ├── COCO_val2014_000000000042.jpg
-    |   └── ...          
-    └── karpathy
-        └── dataset_coco.json
-
-```python
-from vilt.utils.write_coco_karpathy import make_arrow
-make_arrow(root, arrows_root)
-```
-
-## F30K
-http://bryanplummer.com/Flickr30kEntities/
-
-Sign [flickr images request form](https://forms.illinois.edu/sec/229675) and download [karpathy split](https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip)
-
-    root
-    ├── flickr30k-images            
-    │   ├── 1000092795.jpg
-    |   └── ...
-    └── karpathy
-        └── dataset_flickr30k.json
-
-```python
-from vilt.utils.write_f30k_karpathy import make_arrow
-make_arrow(root, arrows_root)
-```
+The codebase uses `pyarrow` to serialize the datasets, conversion scripts are located in `vilt/utils/write_*.py`.
+Please organize the datasets as described below and run `make_arrow` functions to convert the dataset to pyarrow binary file.
 
 ## VQAv2
 https://visualqa.org/download.html
@@ -144,7 +30,7 @@ Download COCO [2014 train images](http://images.cocodataset.org/zips/train2014.z
 
 ```python
 from vilt.utils.write_vqa import make_arrow
-make_arrow(root, arrows_root)
+make_arrow(dataset_root_path, dataset_root_path/arrows_root)
 ```
 
 ## NLVR2
@@ -171,5 +57,89 @@ Clone the [repository](https://github.com/lil-lab/nlvr) and sign the [request fo
 
 ```python
 from vilt.utils.write_nlvr2 import make_arrow
-make_arrow(root, arrows_root)
+make_arrow(dataset_root_path, dataset_root_path/arrows_root)
+```
+
+## VLUE Benchmark
+The benchmar uses raw images from the [MaRVL Dataset](https://marvl-challenge.github.io). The images can be accessed by following this [link](https://marvl-challenge.github.io/download) and following the procedure on the website. The annotations (*.json files) can be found within the ```data/``` folder under the root of this repository and should be copied to the root of the VLUE dataset folder as descirbed in the folder structure.
+
+The folder structure should be as follows:
+
+    root
+    ├── arrows/
+    ├── id/images/           
+    │   ├── 10-xxx                  
+    │   │   ├── 10-10.jpg
+    │   │   ├── 10-11.jpg      
+    │   │   └── ...
+    │   ├── 11-xxx                  
+    │   │   ├── 11-10.jpg
+    │   │   └── 11-11.jpg
+    │   │   └── ...
+    │   └── ...
+    ├── sw/images/           
+    │   ├── 10-xxx                       
+    │   │   └── ...
+    │   ├── 11-xxx
+    │   │   └── ...
+    │   └── ...
+    ├── ta/images/           
+    │   ├── 10-xxx                    
+    │   │   └── ...
+    │   ├── 11-xxx
+    │   │   └── ...
+    │   └── ...
+    ├── tr/images/           
+    │   ├── 10-xxx                     
+    │   │   └── ...
+    │   ├── 11-xxx
+    │   │   └── ...
+    │   └── ...
+    ├── zh/images/           
+    │   ├── 10-xxx                   
+    │   │   └── ...
+    │   ├── 11-xxx
+    │   │   └── ...
+    │   └── ...
+    ├── caption_vlue_test.json
+    ├── caption_vlue_test_gt.json
+    ├── nlvr2_vlue_test.json
+    └── vqa_vlue_test.json
+
+```python
+from vilt.utils import write_ood_nlvr2
+from vilt.utils import write_ood_vqa
+
+write_ood_nlvr2(nlvr2_root, nlvr2_root/arows)
+write_ood_vqa(vqav2_root, vqav2_root/arrows)
+```
+
+Throught this study we used NLVR2 `\cite{suhr2018corpus}`, VQA 2.0 `\cite{goyal2017making}` datasets, and VLUE benchmark `\cite{zhou2022vlue}`.
+
+
+```
+@article{suhr2018corpus,
+  title={A corpus for reasoning about natural language grounded in photographs},
+  author={Suhr, Alane and Zhou, Stephanie and Zhang, Ally and Zhang, Iris and Bai, Huajun and Artzi, Yoav},
+  journal={arXiv preprint arXiv:1811.00491},
+  year={2018}
+}
+
+@inproceedings{goyal2017making,
+  title={Making the v in vqa matter: Elevating the role of image understanding in visual question answering},
+  author={Goyal, Yash and Khot, Tejas and Summers-Stay, Douglas and Batra, Dhruv and Parikh, Devi},
+  booktitle={Proceedings of the IEEE conference on computer vision and pattern recognition},
+  pages={6904--6913},
+  year={2017}
+}
+
+@article{zhou2022vlue,
+      author    = {Wangchunshu Zhou and Yan Zeng and Shizhe Diao and Xinsong Zhang},
+      title     = {VLUE: A Multi-Task Benchmark for Evaluating Vision-Language Models},
+      journal   = {CoRR},
+      volume    = {abs/2205.15237},
+      year      = {2022},
+      archivePrefix = {arXiv},
+      eprint    = {2205.15237}
+}
 ```
