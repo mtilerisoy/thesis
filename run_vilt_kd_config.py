@@ -1,15 +1,15 @@
 from datetime import datetime
 current_time = datetime.now().strftime("%Y%m%d_%H%M")
 
-EPOCHS = 5
-MAX_STEPS = 50
+EPOCHS = 10
+MAX_STEPS = 50000
 LEARNING_RATE = 0.0001
 
-DATASET = "vqa_original"
+DATASET = "nlvr2_id"
 PERCENTAGE = 1
 GPU = [0]
 
-ALPHA_KD = 0 # 0 for QAT only and 1 for QAT + KD
+ALPHA_KD = 0.5 # 0 for QAT only
 KD_LAYER = 0
 TEMPERATURE = 1.0
 

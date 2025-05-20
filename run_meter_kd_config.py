@@ -2,8 +2,8 @@ from datetime import datetime
 current_time = datetime.now().strftime("%Y%m%d_%H%M")
 print(current_time)
 
-EPOCHS = 1
-MAX_STEPS = 90
+EPOCHS = 10
+MAX_STEPS = 50000
 LEARNING_RATE = 0.0001 #1e-5 #0.0001
 
 DATASET = "nlvr2_original"
