@@ -19,7 +19,7 @@ resource.setrlimit(resource.RLIMIT_NOFILE, (20480, rlimit[1]))
 import time
 import torch
 from torch.utils.data import Subset
-from quantization_utils import quantize_modules
+from quantization_utils import quantize_modules, get_quantization_config
 from torch.utils.data import Subset
 
 class SmallMTDataModuleVILT(MTDataModule):
@@ -100,24 +100,18 @@ def main(_config):
         val_check_interval=_config["val_check_interval"],
     )
 
-    # ======= Define Modules to Quantize ========
-    modules_to_quantize = [
-    "text_transformer.encoder.layer.2.output.dense",
-    "text_transformer.encoder.layer.2.intermediate.dense"
-    # "text_transformer.encoder.layer.3.output.dense",
-    # "text_transformer.encoder.layer.3.intermediate.dense"
-    ]
+    bit2_linear, bit2_embedding = get_quantization_config(2)
 
+    torch.quantization.quantize_dynamic(
+    model,
+    {torch.nn.Embedding: bit2_embedding, torch.nn.Linear: bit2_linear,
+     "nlvr2_classifier": bit2_linear, "pooler": bit2_linear, "transformer": bit2_linear},
+    dtype=torch.quint8, inplace=True
+)
 
-    # ========== Testing Quantized Model ==========
-    print("========== Testing Quantized Model - INT8 ==========")
-    model_dynamic = quantize_modules(model, modules_to_quantize, 4)
-    print(f"Model size after quantization:")
-    print_size_of_model(model_dynamic)
-
-    start_time = time.time()
-    trainer.test(model_dynamic, datamodule=dm)
-    end_time = time.time()
-    print("Time taken for DYNAMIC INT4 Inference: ", end_time - start_time)
+    start_time_int4 = time.time()
+    trainer.test(model, datamodule=dm)
+    end_time_int4 = time.time()
+    print("Time taken for DYNAMIC INT4 Inference: ", end_time_int4 - start_time_int4)
     
     
