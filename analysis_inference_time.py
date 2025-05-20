@@ -92,9 +92,5 @@ print(model_dynamic)
 input_batch = next(iter(test_dataloader))
 num_iters = 1000
 
-
 get_inference_time(model, input_batch, num_iters)
 get_inference_time(model_dynamic, input_batch, num_iters)
-
-# print(f"Average time taken for a {num_iters} passes for fully quantized model: {np.mean(time.time() - start_time)/num_iters}")
-
