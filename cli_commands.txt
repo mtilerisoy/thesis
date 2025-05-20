@@ -8,20 +8,17 @@ python run_meter.py with data_root=/data-4/users/mileriso/datasets/VQAv2/arrows 
 ### On NLVR2
 python run_meter.py with data_root=/data-4/users/mileriso/datasets/NLVR2/arrows num_gpus=1 num_nodes=1  task_finetune_nlvr2_clip_bert per_gpu_batchsize=8 load_path="/data-4/users/mileriso/models/meter_nlvr2.ckpt" clip16 text_roberta image_size=288 test_only=True
 
-python run_meter_ptq.py with data_root=/data-4/users/mileriso/datasets/NLVR2/arrows num_gpus=1 num_nodes=1  task_finetune_nlvr2_clip_bert per_gpu_batchsize=8 load_path="/data-4/users/mileriso/models/meter_nlvr2.ckpt" clip16 text_roberta image_size=288 test_only=True 1>output.txt 2>error.txt
-
-### On OOD itr
-python run_meter.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 ood_itr get_recall_metric=True per_gpu_batchsize=4 load_path=/data-4/users/mileriso/models/meter_coco.ckpt clip16 text_roberta image_size=384 test_only=True
+python run_meter_ptq.py with data_root=/data-4/users/mileriso/datasets/NLVR2/arrows num_gpus=1 num_nodes=1  task_finetune_nlvr2_clip_bert per_gpu_batchsize=8 load_path="/data-4/users/mileriso/models/meter_nlvr2.ckpt" clip16 text_roberta image_size=288 test_only=True
 
 ### On OOD vqa
 python run_meter.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 ood_vqa per_gpu_batchsize=4 load_path=/data-4/users/mileriso/models/meter_vqa.ckpt clip16 text_roberta image_size=576 test_only=True
 
-python run_meter_ptq.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 ood_vqa per_gpu_batchsize=4 load_path=/data-4/users/mileriso/models/meter_vqa.ckpt clip16 text_roberta image_size=576 test_only=True 1>out_meter_ood_VQAv2.txt 2>error.txt
+python run_meter_ptq.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 ood_vqa per_gpu_batchsize=4 load_path=/data-4/users/mileriso/models/meter_vqa.ckpt clip16 text_roberta image_size=576 test_only=True
 
 ## On OOD nlvr2
 python run_meter.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1  ood_nlvr2 per_gpu_batchsize=64 load_path="/data-4/users/mileriso/models/meter_nlvr2.ckpt" clip16 text_roberta image_size=288 test_only=True
 
-python run_meter_ptq.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1  ood_nlvr2 per_gpu_batchsize=64 load_path="/data-4/users/mileriso/models/meter_nlvr2.ckpt" clip16 text_roberta image_size=288 test_only=True 1>out_ood.txt 2>error.txt
+python run_meter_ptq.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=0 num_nodes=1  ood_nlvr2 per_gpu_batchsize=64 load_path="/data-4/users/mileriso/models/meter_nlvr2.ckpt" clip16 text_roberta image_size=288 test_only=True
 
 
 ################################################# ViLT model ################################################
@@ -34,21 +31,21 @@ python run_vilt.py with data_root=/data-4/users/mileriso/datasets/Flickr30k/arro
 ### On VQAv2
 python run_vilt.py with data_root=/data-4/users/mileriso/datasets/VQAv2/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=32 task_finetune_vqa_randaug test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_vqa.ckpt"
 
-python run_vilt_ptq.py with data_root=/data-4/users/mileriso/datasets/VQAv2/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=32 task_finetune_vqa_randaug test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_vqa.ckpt" 1>output.txt 2>error.txt
+python run_vilt_ptq.py with data_root=/data-4/users/mileriso/datasets/VQAv2/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=32 task_finetune_vqa_randaug test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_vqa.ckpt"
 
 ### On NLVR2
-python run_vilt_ptq.py with data_root=/data-4/users/mileriso/datasets/NLVR2/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=32 task_finetune_nlvr2_randaug test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_nlvr2.ckpt" 1>out.txt 2>err.txt
+python run_vilt_ptq.py with data_root=/data-4/users/mileriso/datasets/NLVR2/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=32 task_finetune_nlvr2_randaug test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_nlvr2.ckpt"
 
 
 ### On OOD vqa
 python run_vilt.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=64 ood_vqa test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_vqa.ckpt"
 
-python run_vilt_ptq.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=64 ood_vqa test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_vqa.ckpt" 1>out_ood_vqa_vilt.txt 2>err.txt
+python run_vilt_ptq.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=64 ood_vqa test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_vqa.ckpt"
 
 ## On OOD nlvr2
 python run_vilt.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=64 ood_nlvr2 test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_nlvr2.ckpt"
 
-python run_vilt_ptq.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=64 ood_nlvr2 test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_nlvr2.ckpt" 1>out_vilt.txt 2>err.txt
+python run_vilt_ptq.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=64 ood_nlvr2 test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_nlvr2.ckpt"
 
 
 python run_vilt_vqa.py with data_root=/data-4/users/mileriso/datasets/OOD/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=64 ood_vqa test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_vqa.ckpt"
