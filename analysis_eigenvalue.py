@@ -41,9 +41,7 @@ _config["per_gpu_batchsize"] = 1
 pl.seed_everything(_config["seed"])
 
 # Set the GPU device
-gpu_id = 0
-device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
-torch.cuda.set_device(gpu_id)
+device = "cuda"
 
 logger.info(torch.cuda.is_available())
 logger.info(torch.cuda.device_count())
@@ -104,17 +102,39 @@ def hvp(layer, grad_params, v):
     Hv = [h.detach() for h in Hv]  # Detach to stop gradient tracking
     return Hv
 
-def compute_top_eigenvalue(model, layer, input, num_iterations=50):
+def compute_top_eigenvalue(model, layer, input, num_iterations=50, bits=4):
     grad_params = compute_gradients(model, input, layer)
     
-    # Initialize random vector v with same shape as parameters
+    # --- CHANGED: Simulate quantization noise instead of random noise ---
+    def _quantize_perturbation(p):
+        """Structured perturbation for your asymmetric per-tensor quantization (range [-8, 7])"""
+        # --- Parameters from your observer ---
+        quant_min = -8
+        quant_max = 7
+        
+        # Calculate scale based on observed min/max (matching your observer)
+        p_absmax = torch.max(torch.abs(p)) + 1e-8  # Avoid division by zero
+        scale = p_absmax / (quant_max - quant_min)  # Scale = max_abs / 15
+        
+        # Quantize and dequantize to simulate your scheme
+        quantized = torch.clamp(torch.round(p / scale), quant_min, quant_max)
+        dequantized = quantized * scale
+        
+        # Perturbation = quantization error
+        perturbation = dequantized - p
+        return perturbation.to(p.device)
+
+
+    # Generate quantization-simulated perturbations for each parameter
     params = list(layer.parameters())
-    v = [torch.randn_like(p).to(device) for p in params]  # Move v to GPU
+    v = [_quantize_perturbation(p.detach()) for p in params]
+    # logger.debug(f"Quantization-simulated perturbation generated: {v}") 
     
-    # Normalize v
+    # Normalize perturbation vector
     v_flat = torch.cat([vi.view(-1) for vi in v])
     v_norm = torch.norm(v_flat)
-    v = [vi / v_norm for vi in v]
+    v = [vi / (v_norm + 1e-8) for vi in v]  # Add epsilon to avoid division by zero
+    # --- END CHANGES ---
     
     for i in range(num_iterations):
         Hv = hvp(layer, grad_params, v)
@@ -122,11 +142,10 @@ def compute_top_eigenvalue(model, layer, input, num_iterations=50):
         
         # Update v and eigenvalue estimate
         v_norm = torch.norm(Hv_flat)
-        v = [hvi / v_norm for hvi in Hv]
+        v = [hvi / (v_norm + 1e-8) for hvi in Hv]  # Add epsilon
         eigenvalue = v_norm.item()
 
-    logger.debug(f"Final Eiganvalue after {num_iterations} iterations: {eigenvalue}")
-    
+    logger.info(f"Final Eigenvalue after {num_iterations} iterations: {eigenvalue}")
     return eigenvalue
 
 def compute_layer_eigenvalues(model, input, num_iterations=10):
@@ -136,7 +155,6 @@ def compute_layer_eigenvalues(model, input, num_iterations=10):
         if isinstance(layer, (torch.nn.Linear)):
             if "encoder" not in name or "intermediate" not in name or "output" in name or "attention" in name:
                 continue
-            logger.info(f"Computing eigenvalue for layer: {name}")
             eigenvalue = compute_top_eigenvalue(model, layer, input, num_iterations)
 
             eigenvalues[name] = eigenvalue   
@@ -149,7 +167,7 @@ def compute_layer_eigenvalues(model, input, num_iterations=10):
 
     return eigenvalues
 
-def compute_averaged_eigenvalues(model, dataloader, num_batches, num_iterations=50):
+def compute_averaged_eigenvalues(model, dataloader, num_batches, num_iterations=10):
     eigenvalues = {}
     failed_layers = []
     
@@ -225,76 +243,75 @@ def compute_averaged_eigenvalues(model, dataloader, num_batches, num_iterations=
     return eigenvalues, failed_layers
 
 if __name__ == '__main__':
-    try:
-        # ==========================================
-        # ========= Create full datamodule =========
-        # ==========================================
-        if "meter" in _config["model"]:
-            infer_dm = SmallMTDataModuleMETER(_config, dist=False, percentage=0.1)
-            infer_dm.setup("test", is_random=True)
-            infer_dataloader = infer_dm.test_dataloader()
-            logger.info("METER datamodule initialized")
+    with torch.backends.cuda.sdp_kernel(enable_flash=False, enable_math=True, enable_mem_efficient=False):
+    
+        try:
+            # ==========================================
+            # ========= Create full datamodule =========
+            # ==========================================
+            if "meter" in _config["model"]:
+                infer_dm = SmallMTDataModuleMETER(_config, dist=False, num_samples=32)
+                infer_dm.setup("test")
+                infer_dataloader = infer_dm.test_dataloader()
+                logger.info("METER datamodule initialized")
 
-        elif "vilt" in _config["model"]:
-            infer_dm = SmallMTDataModuleVILT(_config, dist=False, percentage=0.1)
-            infer_dm.setup("test", is_random=True)
-            infer_dataloader = infer_dm.test_dataloader()
-            logger.info("ViLT datamodule initialized")
+            elif "vilt" in _config["model"]:
+                infer_dm = SmallMTDataModuleVILT(_config, dist=False, num_samples=32)
+                infer_dm.setup("test")
+                infer_dataloader = infer_dm.test_dataloader()
+                logger.info("ViLT datamodule initialized")
 
-        else:
-            logger.error(f"Model not supported: {_config['model']}")
-            raise ValueError("Model not supported: " + _config["model"])
+            else:
+                logger.error(f"Model not supported: {_config['model']}")
+                raise ValueError("Model not supported: " + _config["model"])
 
-        logger.info(f"Batch size: {_config['batch_size']}")
+            logger.info(f"Batch size: {_config['batch_size']}")
 
-        # ==========================================
-        # ========= Initialize the model ===========
-        # ==========================================
-        if _config["model"] == "vilt":
-            model = ViLTransformerSS(_config)
-            logger.info("Initialized ViLT model")
+            # ==========================================
+            # ========= Initialize the model ===========
+            # ==========================================
+            if _config["model"] == "vilt":
+                model = ViLTransformerSS(_config)
+                logger.info("Initialized ViLT model")
 
-        elif _config["model"] == "meter":
-            model = METERTransformerSS(_config)
-            logger.info("Initialized METER model")
+            elif _config["model"] == "meter":
+                model = METERTransformerSS(_config)
+                logger.info("Initialized METER model")
 
-        else:
-            logger.error(f"Model not supported: {_config['model']}")
-            raise ValueError("Model not supported: " + _config["model"])
+            else:
+                logger.error(f"Model not supported: {_config['model']}")
+                raise ValueError("Model not supported: " + _config["model"])
 
-        # Move model to device
-        model.to(device)
-        model.eval()
-        logger.info(f"Model moved to device: {device}")
+            # Move model to device
+            model.to(device)
+            model.eval()
+            logger.info(f"Model moved to device: {device}")
 
-        # ==========================================
-        # ======= Initialize the dataloader ========
-        # ==========================================
-        input_batch = next(iter(infer_dataloader))
-        num_batches = len(infer_dataloader)
-        
-        logger.debug(f"Input batch keys: {input_batch.keys()}")
-        logger.info(f"Number of batches: {num_batches}")
-        logger.info(f"Samples in a batch: {len(input_batch['answers'])}")
+            input_batch = next(iter(infer_dataloader))
+            num_batches = len(infer_dataloader)
+            
+            logger.debug(f"Input batch keys: {input_batch.keys()}")
+            logger.info(f"Number of batches: {num_batches}")
+            logger.info(f"Samples in a batch: {len(input_batch['answers'])}")
 
-        # ==========================================
-        # ========= Compute eigenvalues ============
-        # ==========================================
-        eigenvalues, failed_layers = compute_averaged_eigenvalues(model, infer_dataloader, num_batches, num_iterations=5)
-        
-        # Save the eigenvalues to a txt file
-        output_file = "eigenvalues_meter.txt"
-        with open(output_file, "w") as f:
-            f.write("Successful computations:\n")
-            f.write(str(eigenvalues))
+            # ==========================================
+            # ========= Compute eigenvalues ============
+            # ==========================================
+            eigenvalues, failed_layers = compute_averaged_eigenvalues(model, infer_dataloader, num_batches, num_iterations=5)
+            
+            # Save the eigenvalues to a txt file
+            output_file = "eigenvalues_meter.txt"
+            with open(output_file, "w") as f:
+                f.write("Successful computations:\n")
+                f.write(str(eigenvalues))
+                if failed_layers:
+                    f.write("\n\nFailed layers:\n")
+                    f.write(str(failed_layers))
+            
             if failed_layers:
-                f.write("\n\nFailed layers:\n")
-                f.write(str(failed_layers))
-        
-        if failed_layers:
-            logger.warning(f"Computation completed with {len(failed_layers)} failed layers")
-        logger.success(f"Successfully saved eigenvalues to {output_file}")
+                logger.warning(f"Computation completed with {len(failed_layers)} failed layers")
+            logger.success(f"Successfully saved eigenvalues to {output_file}")
 
-    except Exception as e:
-        logger.error(f"An error occurred during execution: {str(e)}")
-        raise
+        except Exception as e:
+            logger.error(f"An error occurred during execution: {str(e)}")
+            raise
