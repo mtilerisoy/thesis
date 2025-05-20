@@ -247,7 +247,6 @@ def get_quantization_config(precision):
                                             qscheme=torch.per_tensor_symmetric,
                                             quant_min=-8,
                                             quant_max=7,
-                                            reduce_range=False,
                                         ),
         )
 
