@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     # ========== Initialize the datamodule for pl.Trainer ==========
     # dm = MTDataModule(_config, dist=False)
-    dm = SmallMTDataModuleVILT(_config, dist=False, num_samples=5, start_idx=103)
+    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=1)
     dm.setup("", is_random=True)
     train_dataloader = dm.train_dataloader()
     val_dataloader = dm.val_dataloader()
@@ -63,10 +63,6 @@ if __name__ == "__main__":
     print("Dataloader Length: ", len(train_dataloader))
     print("Dataloader Length: ", len(val_dataloader))
     print("Dataloader Length: ", len(test_dataloader))
-
-    # print(f"Length of the first batch: {len(next(iter(train_dataloader))['answers'])}")
-    # print(f"Shape of the first batch: {next(iter(train_dataloader))['image_0'][0].shape}")
-
 
     # =============== Initialize Full Precision Model ==============
     model_teacher = ViLTransformerSS(_config)
@@ -81,7 +77,7 @@ if __name__ == "__main__":
     model_student = qat_quantizer.prepare(model_student, **modules_to_train)
     
     # Freeze all layers except for the specified ones
-    # freeze_except_layers(model_student, modules_to_train['layer_names'])
+    freeze_except_layers(model_student, modules_to_train['layer_names'])
 
     # Initialize the KD model
     kd_model = KDLightningModule(student_model=model_student, teacher_model=model_teacher, alpha_kd=CLI.ALPHA_KD, lr=CLI.LEARNING_RATE, config=_config, **modules_to_train)
@@ -133,31 +129,10 @@ if __name__ == "__main__":
     
     print("Starting Full Precision Training")
     # Train the model with the quantization-aware training (QAT) quantizer
-    # trainer.fit(kd_model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
-    # trainer.fit(kd_model, train_dataloaders=train_dataloader)
-
-    # Store the weights after training before quantization
-    fc2_weight_after_qat = get_module_by_path(model_student, modules_to_train['layer_names'][-1]).weight.clone()
+    trainer.fit(kd_model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # Quantize the model
-    # model_quant = quantize_modules(model_student, modules_to_train['layer_names'], 4)
-
-    # # Quantize the model dynamically
-    dynamic_ptq_config, embedding_q_config = get_quantization_config(precision=4)
-    model_quant = torch.quantization.quantize_dynamic(
-        kd_model.student_model, {torch.nn.Linear: dynamic_ptq_config, torch.nn.Embedding: embedding_q_config}, inplace=True
-    )
-
-    # # Store the weights after quantization
-    # fc2_weight_after_dyn_quant = get_module_by_path(model_quant, modules_to_train['layer_names'][-1]).weight().int_repr().clone()
-
-    # # Print the tensor information
-    # print("============================================================")
-    # print(f"Min, Max and Mean of the ORIGINAL WEIGHTS: \n{torch.min(fc2_weight)}, {torch.max(fc2_weight)}, mean: {torch.mean(fc2_weight)}")
-    # print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_qat)}, {torch.max(fc2_weight_after_qat)}, mean: {torch.mean(fc2_weight_after_qat)}")
-    # print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_dyn_quant)}, {torch.max(fc2_weight_after_dyn_quant)}")
-    # print("============================================================")
-
+    model_quant = quantize_modules(model_student, modules_to_train['layer_names'], 4)
 
     # =============== Testing Quantized Model ===============
     trainer = pl.Trainer(
@@ -179,7 +154,7 @@ if __name__ == "__main__":
 
     # # Initalize the ood dataset
     _config = configs.vilt_config_vqav2
-    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=0.99)
+    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=1)
     dm.setup("test", is_random=True)
     train_dataloader = dm.train_dataloader()
     val_dataloader = dm.val_dataloader()
