@@ -14,6 +14,7 @@ def load_original_answers(ans_file):
 def calculate_accuracy(predictions, original_answers):
     correct = 0
     total = 0
+    correct_answers = []
 
     for pred in predictions:
         qid = pred["question_id"]
@@ -21,7 +22,10 @@ def calculate_accuracy(predictions, original_answers):
 
         if original_answer is not None and pred["answer"] == original_answer:
             correct += 1
+            correct_answers.append(qid)
         total += 1
+
+    print(f"Correct answers: {correct_answers}")
 
     print(f"Correct: {correct}, Total: {total}")
     accuracy = correct / total if total > 0 else 0
@@ -52,7 +56,8 @@ if __name__ == "__main__":
     else:
         raise ValueError("Model type not supported")
 
-    pred_file = f"result/vqa_submit_{model_type}_vqa_" + pred_file + ".json"
+    # pred_file = f"result/vqa_submit_{model_type}_vqa_" + pred_file + ".json"
+    pred_file = "result/" + pred_file + ".json"
     ans_file = "result/vqa/" + ans_file
 
     predictions = load_predictions(pred_file)
