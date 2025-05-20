@@ -31,6 +31,8 @@ class KDLightningModule(pl.LightningModule):
         self.teacher_fusion_feats_mlp = None
         self.student_fusion_feats_pooler = None
         self.teacher_fusion_feats_pooler = None
+        self.student_fusion_feats_attn = None
+        self.teacher_fusion_feats_attn = None
 
         # Register forward hooks for both student and teacher
         self._register_hooks()
@@ -44,6 +46,10 @@ class KDLightningModule(pl.LightningModule):
         def student_hook_pooler(module, inp, out):
             # Pooler layer CLS token
             self.student_fusion_feats_pooler = out[:, 0]
+        
+        def student_hook_attn(module, inp, out):
+            # Pooler layer CLS token
+            self.student_fusion_feats_attn = out[:, 0]
 
         def teacher_hook_mlp(module, inp, out):
             # MLP layer CLS token
@@ -52,12 +58,19 @@ class KDLightningModule(pl.LightningModule):
         def teacher_hook_pooler(module, inp, out):
             # Pooler layer CLS token
             self.teacher_fusion_feats_pooler = out[:, 0]
+        
+        def teacher_hook_attn(module, inp, out):
+            # Pooler layer CLS token
+            self.teacher_fusion_feats_attn = out[:, 0]
 
-        # # # Register hook on the last transformer block
-        # self.student_model.transformer.blocks[self.kd_layer].register_forward_hook(student_hook_mlp)
-        # self.teacher_model.transformer.blocks[self.kd_layer].register_forward_hook(teacher_hook_mlp)
+        # Register hook on the last transformer block
+        self.student_model.transformer.blocks[self.kd_layer].register_forward_hook(student_hook_mlp)
+        self.teacher_model.transformer.blocks[self.kd_layer].register_forward_hook(teacher_hook_mlp)
 
-        # # Pooler Layers
+        self.student_model.transformer.blocks[self.kd_layer].attn.register_forward_hook(student_hook_mlp)
+        self.teacher_model.transformer.blocks[self.kd_layer].attn.register_forward_hook(teacher_hook_mlp)
+
+        # Pooler Layers
         self.student_model.pooler.dense.register_forward_hook(student_hook_pooler)
         self.teacher_model.pooler.dense.register_forward_hook(teacher_hook_pooler)
 
@@ -160,51 +173,33 @@ class KDLightningModule(pl.LightningModule):
     def compute_kd_loss(self, batch):
         """ Compute KD loss by matching fusion layer outputs """
         with torch.no_grad():
-            # self.teacher_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=1)
-            # self.teacher_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=2)
+            self.teacher_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=1)
+            self.teacher_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=2)
 
-            # VQA inference
-            self.teacher_model.infer(batch, mask_text=False, mask_image=False)
-
-        # self.student_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=1)
-        # self.student_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=2)
-        
-        # VQA inference
-        self.student_model.infer(batch, mask_text=False, mask_image=False)
-        
-
-        # if self.student_fusion_feats_mlp is None or self.teacher_fusion_feats_mlp is None or self.student_fusion_feats_pooler is None or self.teacher_fusion_feats_pooler is None:
-        #     raise RuntimeError("Fusion layer hooks did not capture outputs!")
+        self.student_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=1)
+        self.student_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=2)
 
         # Detach the teacher features to avoid backpropagating through it
-        # teacher_feats_mlp = self.teacher_fusion_feats_mlp.detach()
+        teacher_feats_mlp = self.teacher_fusion_feats_mlp.detach()
         teacher_feats_pooler = self.teacher_fusion_feats_pooler.detach()
 
-        # Compute Mean Squared Error (MSE) loss
-        # kd_loss = F.mse_loss(self.student_fusion_feats, teacher_feats)
+        # Compute Cosine Similarity loss either for MLP or Pooler layer
+        # kd_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_mlp, teacher_feats_mlp, dim=-1))
+        kd_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_pooler, teacher_feats_pooler, dim=-1))
         
-        # Compute Cosine Similarity loss
-        # kd_loss_mlp = -torch.mean(F.cosine_similarity(self.student_fusion_feats_mlp, teacher_feats_mlp, dim=-1))
-        kd_loss_pooler = -torch.mean(F.cosine_similarity(self.student_fusion_feats_pooler, teacher_feats_pooler, dim=-1))
-        kd_loss = kd_loss_pooler
-        
-        # cls_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats[:, 0], teacher_feats[:, 0], dim=-1))
-        cls_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_pooler, teacher_feats_pooler, dim=-1))
+        cls_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_mlp[:, 0], teacher_feats_mlp[:, 0], dim=-1))
+        # cls_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_pooler, teacher_feats_pooler, dim=-1))
 
         return kd_loss, cls_loss
     
     def forward(self, batch):
         ret = dict()
-        # ret.update(self.compute_nlvr2_loss(batch))
-        ret.update(self.compute_vqa_loss(batch))
+        ret.update(self.compute_nlvr2_loss(batch))
 
     def training_step(self, batch, batch_idx):
         """ Compute total loss and return for backpropagation """
-        # ret = self.compute_nlvr2_loss(batch)
-        # task_loss = ret["nlvr2_loss"]
-
-        ret = self.compute_vqa_loss(batch)
-        task_loss = ret["vqa_loss"]
+        ret = self.compute_nlvr2_loss(batch)
+        task_loss = ret["nlvr2_loss"]
         
         kd_loss, cls_loss = self.compute_kd_loss(batch)
 
