@@ -1,25 +1,35 @@
 # Evaluation
-The results will vary a bit since we do a batched-inference, which yields padded image batch that would be inconsistently embedded while performing linear image patch projection.
+The results will vary a bit based on the batch size selection because the models do a batched-inference. This yields padded image batch that would be inconsistently embedded while performing linear image patch projection.
 
-## Evaluate VQAv2
-```bash
-python run.py with data_root=<ARROW_ROOT> num_gpus=<NUM_GPUS> num_nodes=<NUM_NODES> per_gpu_batchsize=<BS_FITS_YOUR_GPU> task_finetune_vqa_randaug test_only=True precision=32 load_path="<YOUR_WEIGHT_ROOT>/vilt_vqa.ckpt"
+## Inference
+- For evaluating full precision inference use run_vilt.py for ViLT models and run_meter.py for METER model.
+- For evaluating post-training dynamic quantization use run_vilt_ptq.py for ViLT models and run_meter_ptq.py for METER model.
 
-ex)
-python run.py with data_root=/data2/dsets/dataset num_gpus=8 num_nodes=1 per_gpu_batchsize=64 task_finetune_vqa_randaug test_only=True precision=32 load_path="weights/vilt_vqa.ckpt"
 
-output > This script will generate `result/vqa_submit_vilt_vqa.json`, you can upload it to eval.ai (https://eval.ai/web/challenges/challenge-page/830/overview) evaluation server to get test-dev score.
-[{"test-dev": {"yes/no": 87.44, "number": 50.2, "other": 62.38, "overall": 71.32}}]
+### Evaluating VQAv2
+```python
+python run_vilt.py with data_root=<ARROW_ROOT> num_gpus=<NUM_GPUS> num_nodes=<NUM_NODES> per_gpu_batchsize=<BS_FITS_YOUR_GPU> task_finetune_vqa_randaug test_only=True precision=32 load_path="<YOUR_WEIGHT_ROOT>/model_weights_vqa.ckpt"
+
+example:
+python run_vilt.py with data_root=/data-4/users/mileriso/datasets/VQAv2/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=32 task_finetune_vqa_randaug test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_vqa.ckpt"
 ```
 
-## Evaluate NLVR2
-```bash
-python run.py with data_root=<ARROW_ROOT> num_gpus=<NUM_GPUS> num_nodes=<NUM_NODES> per_gpu_batchsize=<BS_FITS_YOUR_GPU> task_finetune_nlvr2_randaug test_only=True precision=32 load_path="<YOUR_WEIGHT_ROOT>/vilt_nlvr2.ckpt"
+This script will generate 'result/vqa_submit_vilt_vqa.json'. Then you need to run the assessment script as follows:
+```python
+python assess_vqa.py
+```
 
-ex)
-python run.py with data_root=/data2/dsets/dataset num_gpus=8 num_nodes=1 per_gpu_batchsize=64 task_finetune_nlvr2_randaug test_only=True precision=32 load_path="weights/vilt_nlvr2.ckpt"
+The output will shows the correct number of guesses as well as the accuracy.
 
-output >
+### Evaluating NLVR2
+```python
+python run_vilt.py with data_root=<ARROW_ROOT> num_gpus=<NUM_GPUS> num_nodes=<NUM_NODES> per_gpu_batchsize=<BS_FITS_YOUR_GPU> task_finetune_nlvr2_randaug test_only=True precision=32 load_path="<YOUR_WEIGHT_ROOT>/model_weights_nlvr2.ckpt"
+
+example:
+python run_meter.py with data_root=/data-4/users/mileriso/datasets/NLVR2/arrows num_gpus=1 num_nodes=1  task_finetune_nlvr2_clip_bert per_gpu_batchsize=8 load_path="/data-4/users/mileriso/models/meter_nlvr2.ckpt" clip16 text_roberta image_size=288 test_only=True
+```
+The output will look like:
+```python
 --------------------------------------------------------------------------------
 DATALOADER:0 TEST RESULTS
 {'nlvr2/dev/accuracy': tensor(0.7486, device='cuda:0'),
@@ -35,44 +45,46 @@ DATALOADER:0 TEST RESULTS
 INFO - ViLT - Completed after 0:01:31
 ```
 
-## Evaluate COCO IR/TR
-```bash
-python run.py with data_root=<ARROW_ROOT> num_gpus=<NUM_GPUS> num_nodes=<NUM_NODES> per_gpu_batchsize=<BS_FITS_YOUR_GPU> task_finetune_irtr_coco_randaug test_only=True precision=32 load_path="<YOUR_WEIGHT_ROOT>/vilt_irtr_coco.ckpt"
+The important metric is the ```'nlvr2/test/accuracy'``` for this study.
 
-or you can evaluate zero-shot performance just simply using "<YOUR_WEIGHT_ROOT>/vilt_200k_mlm_itm.ckpt" instead.
 
-ex)
-python run.py with data_root=/data2/dsets/dataset num_gpus=8 num_nodes=1 per_gpu_batchsize=4 task_finetune_irtr_coco_randaug test_only=True precision=32 load_path="weights/vilt_irtr_coco.ckpt"
+## Evaluating CLS-KD (Retraining)
 
-output > caution! this will take a lot of time (= run transformer for 5000 x 5000 samples; the returned values are IR R@1, R@5, R@10 and TR R@1, R@5, R@10)
-(tensor(0.4299), tensor(0.7284), tensor(0.8307), tensor(0.6162), tensor(0.8632), tensor(0.9270)) 0
-Testing: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 782/782 [34:58:50<00:00, 161.04s/it]
---------------------------------------------------------------------------------
-DATALOADER:0 TEST RESULTS
-{'irtr/val/irtr_loss': tensor(0.0533, device='cuda:0'),
- 'irtr/val/irtr_loss_epoch': tensor(0.0540, device='cuda:0'),
- 'val/the_metric': 1.0460796058177948}
---------------------------------------------------------------------------------
-INFO - ViLT - Completed after 1 day, 10:59:12
+First step is replace the ```data_root``` and ```load_path``` fields with your dataset and model directories under ```configs.py```.  Here each dictionary defines the CLI arguments for running the experiments. The name of the dictionary indicates for which model and dataset this configuration is. For example ```meter_config_nlvr2_id``` means the METER model using in-distribution NLVR2 dataset.
+
+
+### Training Configuration
+```run_vilt_config.py``` and ```run_meter_config.py``` files contain the definitions of the training hyperparametes for ViLT and METER models respectively. These values are pre-configured but can be changed. These hyperparameters are:
+
+**Core Training Parameters**
+
+- EPOCHS: Defines the number of complete passes through the training dataset
+- MAX_STEPS: Maximum number of training iterations regardless of epoch completion
+- LEARNING_RATE: Step size at which the model's parameters are updated during training. 0.0001 is the default.
+- DATASET: Specifies which dataset to use for training options are nlvr_ood and nlvr_id for OOD and in-domain datasets respectively.
+- PERCENTAGE: Fraction of the dataset to use can have values between 0 and 1 where 1 = 100% of the dataset
+- GPU: List of GPU device IDs to use for training ([0] means using only the first GPU)
+
+**Knowledge Distillation Parameters**
+- ALPHA_KD: Controls the distillation strengt. Default is 0.5 and 0 for QAT-only training.
+- KD_LAYER: Specifies which transformer layer to apply knowledge distillation on
+- TEMPERATURE: Softmax temperature for knowledge distillation (higher values produce softer probability distributions)
+
+**Model Training Control**
+- modules_to_train: Dictionary defining which specific layers to fine-tune during training. The rest of the layers will be frozen durin retraining
+- layer_names: List of model components to be trained
+- kd_layer: Layer for knowledge distillation
+
+**Experiment Tracking**
+- LOG_DIR: Directory where training logs are saved (tesnorboard)
+- EXP_NAME: Unique experiment name with timestamp for tracking different runs
+
+These parameters allow you to control various aspects of model training, from basic hyperparameters to specific knowledge distillation settings.
+
+After the configuration, to run retraining and evaluate the method use:
+```python
+python run_vilt_kd.py
+python run_meter_kd.py
 ```
 
-## Evaluate F30K IR/TR
-```bash
-python run.py with data_root=<ARROW_ROOT> num_gpus=<NUM_GPUS> num_nodes=<NUM_NODES> per_gpu_batchsize=<BS_FITS_YOUR_GPU> task_finetune_irtr_f30k_randaug test_only=True precision=32 load_path="<YOUR_WEIGHT_ROOT>/vilt_irtr_f30k.ckpt"
-
-or you can evaluate zero-shot performance just simply using "<YOUR_WEIGHT_ROOT>/vilt_200k_mlm_itm.ckpt" instead.
-
-ex)
-python run.py with data_root=/data2/dsets/dataset num_gpus=8 num_nodes=1 per_gpu_batchsize=4 task_finetune_irtr_f30k_randaug test_only=True precision=32 load_path="weights/vilt_irtr_f30k.ckpt"
-
-output > the returned values are IR R@1, R@5, R@10 and TR R@1, R@5, R@10)
-(tensor(0.6454), tensor(0.8886), tensor(0.9392), tensor(0.8360), tensor(0.9680), tensor(0.9860)) 0
-Testing: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 157/157 [1:26:35<00:00, 33.09s/it]
---------------------------------------------------------------------------------
-DATALOADER:0 TEST RESULTS
-{'irtr/val/irtr_loss': tensor(0.1331, device='cuda:0'),
- 'irtr/val/irtr_loss_epoch': tensor(0.1189, device='cuda:0'),
- 'val/the_metric': 1.4814000129699707}
---------------------------------------------------------------------------------
-INFO - ViLT - Completed after 1:27:01
-```
+This will give an output similar to the NLVR2 inference.
