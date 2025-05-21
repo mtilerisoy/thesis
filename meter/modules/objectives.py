@@ -448,7 +448,7 @@ def vqa_test_step(pl_module, batch, output):
     qid_ans_dicts = [{"question_id": int(qid), "answer": ans} for qid, ans in qid_ans]
     
     # Save the list of dictionaries to a JSON file
-    with open("/home/mileriso/thesis/result/vqa/METER_original_answers.json", "w") as f:
+    with open("result/vqa/METER_original_answers.json", "w") as f:
         json.dump(qid_ans_dicts, f, indent=4)
     
     # print(f"Question vs prediction: {questions} vs {vqa_preds}")

@@ -580,18 +580,19 @@ def init_weights(module):
 
 def vqa_test_step(pl_module, batch, output):
     # Modify the id2answer definition to use the ood_vqa dataset
-    id2answer = (
-        # pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].id2answer
-        # if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts
-        # else pl_module.trainer.datamodule.dm_dicts["ood_vqa"].id2answer
-        # if "ood_vqa" in pl_module.trainer.datamodule.dm_dicts
-        # else pl_module.trainer.datamodule.dm_dicts["vqa"].id2answer
-        pl_module.datamodule.dm_dicts["vqa_trainval"].id2answer
-        if "vqa_trainval" in pl_module.datamodule.dm_dicts
-        else pl_module.datamodule.dm_dicts["ood_vqa"].id2answer
-        if "ood_vqa" in pl_module.datamodule.dm_dicts
-        else pl_module.datamodule.dm_dicts["vqa"].id2answer
-    )
+    # Assign id2answer using available keys in dm_dicts
+    if hasattr(pl_module, "trainer") and hasattr(pl_module.trainer, "datamodule"):
+        dm_dicts = pl_module.trainer.datamodule.dm_dicts
+    else:
+        dm_dicts = pl_module.datamodule.dm_dicts
+
+    if "vqa_trainval" in dm_dicts:
+        id2answer = dm_dicts["vqa_trainval"].id2answer
+    elif "ood_vqa" in dm_dicts:
+        id2answer = dm_dicts["ood_vqa"].id2answer
+    else:
+        id2answer = dm_dicts["vqa"].id2answer
+
     vqa_logits = output["vqa_logits"]
     vqa_preds = vqa_logits.argmax(dim=-1)
     vqa_preds = [id2answer[pred.item()] for pred in vqa_preds]
@@ -602,24 +603,26 @@ def vqa_test_step(pl_module, batch, output):
     import json
     
     # Get the question id and correct answer pairs from the datamodule
-    qid_ans = (
-        # pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].qid_ans_pairs
-        # if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts
-        # else pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
-        # if "ood_vqa" in pl_module.trainer.datamodule.dm_dicts
-        # else pl_module.trainer.datamodule.dm_dicts["vqa"].qid_ans_pairs
-        pl_module.datamodule.dm_dicts["vqa_trainval"].qid_ans_pairs
-        if "vqa_trainval" in pl_module.datamodule.dm_dicts
-        else pl_module.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
-        if "ood_vqa" in pl_module.datamodule.dm_dicts
-        else pl_module.datamodule.dm_dicts["vqa"].qid_ans_pairs
-    )
+    try:
+        if "vqa_trainval" in pl_module.trainer.datamodule.dm_dicts:
+            qid_ans = pl_module.trainer.datamodule.dm_dicts["vqa_trainval"].qid_ans_pairs
+        elif "ood_vqa" in pl_module.trainer.datamodule.dm_dicts:
+            qid_ans = pl_module.trainer.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
+        else:
+            qid_ans = pl_module.trainer.datamodule.dm_dicts["vqa"].qid_ans_pairs
+    except AttributeError:
+        if "vqa_trainval" in pl_module.datamodule.dm_dicts:
+            qid_ans = pl_module.datamodule.dm_dicts["vqa_trainval"].qid_ans_pairs
+        elif "ood_vqa" in pl_module.datamodule.dm_dicts:
+            qid_ans = pl_module.datamodule.dm_dicts["ood_vqa"].qid_ans_pairs
+        else:
+            qid_ans = pl_module.datamodule.dm_dicts["vqa"].qid_ans_pairs
 
     # Convert the list of tuples to a list of dictionaries
     qid_ans_dicts = [{"question_id": int(qid), "answer": ans} for qid, ans in qid_ans]
     
     # Save the list of dictionaries to a JSON file
-    with open("/home/mileriso/thesis/result/vqa/ViLT_original_answers.json", "w") as f:
+    with open("result/vqa/ViLT_original_answers.json", "w") as f:
         json.dump(qid_ans_dicts, f, indent=4)
     
     # print(f"Question vs prediction: {questions} vs {vqa_preds}")
