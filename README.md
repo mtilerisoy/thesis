@@ -15,14 +15,65 @@ The pretrained model weights can be accessed through the following links:
 
 Put the weights under your root model folder.
 
-## Dataset
-Please refer to the ```DATA.md``` file for instructions on how to download and prepare the datasets.
-
 ## Repo Structure
 The structure of the codebase is as follows
 
     root
-    |
+    ├── vilt/                           # ViLT model implementation and utilities
+    │   ├── modules/                    # Core model architecture components
+    │   ├── datasets/                   # Dataset loaders for ViLT
+    │   ├── utils/                      # Utility functions for data processing
+    │   │   ├── write_coco_karpathy.py  # Data conversion for COCO dataset
+    │   │   ├── write_vqa.py            # Data conversion for VQA dataset
+    │   │   ├── write_nlvr2.py          # Data conversion for NLVR2 dataset
+    │   │   └── ...                     # Other data conversion utilities
+    │   └── configs/                    # Configuration files for ViLT
+    │
+    ├── meter/                          # METER model implementation and utilities
+    │   ├── modules/                    # Core model architecture components
+    │   ├── datasets/                   # Dataset loaders for METER
+    │   ├── utils/                      # Utility functions
+    │   └── configs/                    # Configuration files for METER
+    │
+    ├── data/                           # Dataset storage and annotations
+    │   ├── VQAv2/                      # Visual Question Answering v2 dataset
+    │   ├── NLVR2/                      # Natural Language for Visual Reasoning 2
+    │   └── VLUE/                       # VLUE benchmark data
+    │
+    ├── experiments/                    # Experiment results and checkpoints
+    │   ├── vilt/                       # ViLT experiment results
+    │   └── meter/                      # METER experiment results
+    │
+    ├── run_vilt.py                     # Script to run ViLT model
+    ├── run_vilt_ptq.py                 # Post-training quantization for ViLT
+    ├── run_vilt_kd.py                  # Knowledge distillation for ViLT
+    ├── run_vilt_kd_config.py           # Configuration for ViLT knowledge distillation
+    │
+    ├── run_meter.py                    # Script to run METER model
+    ├── run_meter_ptq.py                # Post-training quantization for METER
+    ├── run_meter_kd.py                 # Knowledge distillation for METER
+    ├── run_meter_kd_config.py          # Configuration for METER knowledge distillation
+    ├── run_meter_kd_multiple.sh        # Batch processing script for METER KD
+    │
+    ├── run_block_sensitivity.py        # Block sensitivity analysis script
+    ├── assess_vqa.py                   # VQA assessment script
+    ├── arrow.py                        # Data conversion to arrow format
+    ├── quantization_utils.py           # Utilities for quantization
+    │
+    ├── DATA.md                         # Instructions for dataset preparation
+    ├── EVAL.md                         # Evaluation instructions
+    ├── EVAL_ViLT.md                    # ViLT-specific evaluation instructions
+    ├── TRAIN.md                        # Training instructions
+    ├── README_ViLT.md                  # Original ViLT README
+    ├── README.md                       # Main repository README
+    ├── requirements.txt                # Python dependencies
+    ├── setup.py                        # Package installation script
+    └── LICENSE                         # Project license
+
+Please note that model weights and data files not necessarliy have to be included under this root.
+
+## Dataset
+Please refer to the ```DATA.md``` file for instructions on how to download and prepare the datasets.
 
 ## Evaluation
 Please refer to the ```EVAL.md``` file for the details of how to run the scripts
