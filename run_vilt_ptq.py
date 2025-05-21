@@ -79,13 +79,13 @@ def main(_config):
     )
 
     print("========== Testing Quantized Model - Mixed Precision ==========")
-    # bit8_linear, _ = quantization_utils.get_quantization_config(8)
-    # bit4_linear, _ = quantization_utils.get_quantization_config(4)
-    bit2_linear, bit2_embedding = quantization_utils.get_quantization_config(2)
+    # linear_config, embedding_config = quantization_utils.get_quantization_config(8)
+    linear_config, embedding_config = quantization_utils.get_quantization_config(4)
+    # linear_config, embedding_config = quantization_utils.get_quantization_config(2)
 
     torch.quantization.quantize_dynamic(
     model,
-    {torch.nn.Embedding: bit2_embedding, "nlvr2_classifier": bit2_linear, "pooler": bit2_linear, "transformer": bit2_linear},
+    {torch.nn.Embedding: embedding_config, "nlvr2_classifier": linear_config, "pooler": linear_config, "transformer": linear_config},
     dtype=torch.quint8, inplace=True
 )
 

@@ -100,12 +100,15 @@ def main(_config):
         val_check_interval=_config["val_check_interval"],
     )
 
-    bit2_linear, bit2_embedding = get_quantization_config(2)
+    print("========== Testing Quantized Model - Mixed Precision ==========")
+    # linear_config, embedding_config = get_quantization_config(8)
+    linear_config, embedding_config = get_quantization_config(4)
+    # linear_config, embedding_config = get_quantization_config(2)
 
     torch.quantization.quantize_dynamic(
     model,
-    {torch.nn.Embedding: bit2_embedding, torch.nn.Linear: bit2_linear,
-     "nlvr2_classifier": bit2_linear, "pooler": bit2_linear, "transformer": bit2_linear},
+    {torch.nn.Embedding: embedding_config, torch.nn.Linear: linear_config,
+     "nlvr2_classifier": linear_config, "pooler": linear_config, "transformer": linear_config},
     dtype=torch.quint8, inplace=True
 )
 
