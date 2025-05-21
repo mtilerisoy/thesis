@@ -53,7 +53,7 @@ The important metric is the ```'nlvr2/test/accuracy'``` for this study.
 
 ## Evaluating CLS-KD (Retraining)
 
-First step is replace the ```data_root``` and ```load_path``` fields with your dataset and model directories under ```configs.py```.  Here each dictionary defines the CLI arguments for running the experiments. The name of the dictionary indicates for which model and dataset this configuration is. For example ```meter_config_nlvr2_id``` means the METER model using in-distribution NLVR2 dataset.
+First step is replace the ```data_root``` and ```load_path``` fields with your dataset and model directories under ```configs.py```.  Here each dictionary defines the CLI arguments for running the experiments. The name of the dictionary indicates for which model, task, and dataset this configuration is. For example ```meter_config_nlvr2_id``` means the METER model using in-distribution dataset on NLVR2 task.
 
 
 ### Training Configuration
@@ -68,15 +68,15 @@ First step is replace the ```data_root``` and ```load_path``` fields with your d
 - PERCENTAGE: Fraction of the dataset to use can have values between 0 and 1 where 1 = 100% of the dataset
 - GPU: List of GPU device IDs to use for training ([0] means using only the first GPU)
 
-**Knowledge Distillation Parameters**
-- ALPHA_KD: Controls the distillation strengt. Default is 0.5 and 0 for QAT-only training.
-- KD_LAYER: Specifies which transformer layer to apply knowledge distillation on
-- TEMPERATURE: Softmax temperature for knowledge distillation (higher values produce softer probability distributions)
+**Knowledge Distillation Hyper-Parameters**
 
-**Model Training Control**
+These values are the hyperparameters of our method and default values are already set. Unless you want to tune these should not change them.
+
+- ALPHA_KD: Controls the distillation strengt. Default is 0.5 and 0 for QAT-only training.
+- KD_LAYER: Specifies which transformer layer to apply knowledge distillation on. These are the bottleneck layers identified within the study.
 - modules_to_train: Dictionary defining which specific layers to fine-tune during training. The rest of the layers will be frozen durin retraining
-- layer_names: List of model components to be trained
-- kd_layer: Layer for knowledge distillation
+    - layer_names: List of model components to be trained
+    - kd_layer: Layer for knowledge distillation
 
 **Experiment Tracking**
 - LOG_DIR: Directory where training logs are saved (tesnorboard)
