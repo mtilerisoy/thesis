@@ -38,11 +38,8 @@ print("└───────────────────────�
 if __name__ == "__main__":
     if CLI.DATASET == "nlvr2_ood":
         _config = configs.vilt_config_nlvr2
-    elif CLI.DATASET == "nlvr2_original":
+    elif CLI.DATASET == "nlvr2_id":
         _config = configs.vilt_config_nlvr2_original
-    elif CLI.DATASET == "vqa_original":
-        # _config = configs.vilt_config_vqav2_original
-        _config = configs.vilt_config_vqav2
     else:
         raise ValueError(f"Unknown dataset: {CLI.DATASET}")
     
@@ -124,9 +121,6 @@ if __name__ == "__main__":
         val_check_interval=_config["val_check_interval"],
     )
 
-    # Store the initial weights before training
-    fc2_weight = get_module_by_path(model_student, modules_to_train['layer_names'][-1]).weight.clone()
-    
     print("Starting Full Precision Training")
     # Train the model with the quantization-aware training (QAT) quantizer
     trainer.fit(kd_model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
@@ -153,17 +147,11 @@ if __name__ == "__main__":
     )
 
     # # Initalize the ood dataset
-    _config = configs.vilt_config_vqav2
+    _config = configs.vilt_config_nlvr2_ood
     dm = SmallMTDataModuleVILT(_config, dist=False, percentage=1)
     dm.setup("test", is_random=True)
-    train_dataloader = dm.train_dataloader()
-    val_dataloader = dm.val_dataloader()
     test_dataloader = dm.test_dataloader()
     model_quant.eval()
-    model_teacher.eval()
 
-    model_quant.datamodule = dm
-    model_teacher.datamodule = dm
 
-    # trainer.test(model_teacher, dataloaders=test_dataloader)
     trainer.test(model_quant, dataloaders=test_dataloader)

@@ -13,9 +13,10 @@ import torch
 import pytorch_lightning as pl
 
 from meter.modules import METERTransformerSS
+from meter.datamodules.multitask_datamodule import MTDataModule
 from meter.modules.kd_module import KDLightningModule
 
-from quantization_utils import SmallMTDataModuleMETER, get_module_by_path, quantize_modules, freeze_except_layers, get_quantization_config
+from quantization_utils import get_module_by_path, quantize_modules, freeze_except_layers, get_quantization_config
 import configs
 from torchao.quantization.prototype.qat import Int8DynActInt4WeightQATQuantizer
 import run_meter_kd_config as CLI
@@ -34,9 +35,9 @@ print("└───────────────────────�
 
 if __name__ == "__main__":
     if CLI.DATASET == "nlvr2_ood":
-        _config = configs.meter_config_nlvr2
+        _config = configs.meter_config_nlvr2_ood
     elif CLI.DATASET == "nlvr2_original":
-        _config = configs.meter_config_nlvr2_original
+        _config = configs.meter_config_nlvr2_id
     else:
         raise ValueError(f"Unknown dataset: {CLI.DATASET}")
     
@@ -47,18 +48,11 @@ if __name__ == "__main__":
     pl.seed_everything(_config["seed"])
 
     # ========== Initialize the datamodule for pl.Trainer ==========
-    # dm = MTDataModule(_config, dist=False)
-    dm = SmallMTDataModuleMETER(_config, dist=False, percentage=0.25)
-    dm.setup("", is_random=True)
+    dm = MTDataModule(_config, dist=False)
+    dm.setup("")
     train_dataloader = dm.train_dataloader()
-    # val_dataloader = dm.val_dataloader()
-    # train_dataloader = dm.test_dataloader()
-
-    print("Dataloader Length: ", len(train_dataloader))
-
-    print(f"Length of the first batch: {len(next(iter(train_dataloader))['answers'])}")
-    print(f"Shape of the first batch: {next(iter(train_dataloader))['image_0'][0].shape}")
-
+    val_dataloader = dm.val_dataloader()
+    train_dataloader = dm.test_dataloader()
 
     # =============== Initialize Full Precision Model ==============
     model_teacher = METERTransformerSS(_config)
@@ -73,8 +67,7 @@ if __name__ == "__main__":
     model_student = qat_quantizer.prepare(model_student, **modules_to_train)
     
     # Freeze all layers except for the specified ones
-    # freeze_except_layers(model_student, modules_to_train['layer_names'])
-    
+    freeze_except_layers(model_student, modules_to_train['layer_names'])
 
     # Initialize the KD model
     kd_model = KDLightningModule(student_model=model_student, teacher_model=model_teacher, alpha_kd=CLI.ALPHA_KD, lr=CLI.LEARNING_RATE, config=_config, **modules_to_train)
@@ -132,25 +125,8 @@ if __name__ == "__main__":
     # Store the weights after training before quantization
     fc2_weight_after_qat = get_module_by_path(model_student, modules_to_train['layer_names'][-1]).weight.clone()
 
-    # # Quantize the model
-    # model_quant = quantize_modules(model_student, modules_to_train['layer_names'], 4)
-
-    # Quantize the model dynamically
-    dynamic_ptq_config, embedding_q_config = get_quantization_config(precision=4)
-    model_quant = torch.quantization.quantize_dynamic(
-        kd_model.student_model, {torch.nn.Linear: dynamic_ptq_config, torch.nn.Embedding: embedding_q_config}, inplace=True
-    )
-
-
-    # # Store the weights after quantization
-    # fc2_weight_after_dyn_quant = get_module_by_path(model_quant, modules_to_train['layer_names'][-1]).weight().int_repr().clone()
-
-    # # Print the tensor information
-    # print("============================================================")
-    # print(f"Min, Max and Mean of the ORIGINAL WEIGHTS: \n{torch.min(fc2_weight)}, {torch.max(fc2_weight)}, mean: {torch.mean(fc2_weight)}")
-    # print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_qat)}, {torch.max(fc2_weight_after_qat)}, mean: {torch.mean(fc2_weight_after_qat)}")
-    # print(f"Min, Max and Mean of the QAT WEIGHTS: \n{torch.min(fc2_weight_after_dyn_quant)}, {torch.max(fc2_weight_after_dyn_quant)}")
-    # print("============================================================")
+    # Quantize the model
+    model_quant = quantize_modules(model_student, modules_to_train['layer_names'], 4)
 
     # =============== Testing Quantized Model ===============
     trainer = pl.Trainer(
@@ -170,8 +146,8 @@ if __name__ == "__main__":
     )
 
     # Initalize the ood dataset
-    _config = configs.meter_config_nlvr2
-    dm = SmallMTDataModuleMETER(_config, dist=False, percentage=1)
+    _config = configs.meter_config_nlvr2_ood
+    dm = MTDataModule(_config, dist=False)
     dm.setup("test", is_random=True)
     test_dataloader = dm.test_dataloader()
     model_quant.eval()
