@@ -13,7 +13,6 @@ import torch
 import pytorch_lightning as pl
 
 from meter.modules import METERTransformerSS
-from meter.datamodules.multitask_datamodule import MTDataModule
 from meter.modules.kd_module import KDLightningModule
 
 from quantization_utils import SmallMTDataModuleMETER, quantize_modules, freeze_except_layers
@@ -26,8 +25,8 @@ print("┌───────────────────────�
 print("│                                                                                                        │")
 print(f"│  Running with: epochs={CLI.EPOCHS}, max_steps={CLI.MAX_STEPS}, learning_rate={CLI.LEARNING_RATE}    \n│")
 print(f"│  dataset={CLI.DATASET}, percentage={CLI.PERCENTAGE}, alpha_kd={CLI.ALPHA_KD}                        \n│")
-print(f"│  gpu={CLI.GPU}, kd_layer={CLI.KD_LAYER}, temperature={CLI.TEMPERATURE}                              \n│")
-print(f"│  log_dir={CLI.LOG_DIR},                                                                         \n  │")
+print(f"│  gpu={CLI.GPU}, kd_layer={CLI.KD_LAYER}, log_dir={CLI.LOG_DIR},                                     \n│")
+print(f"│                                                                                                     \n│")
 print("│                                                                                                        │")
 if CLI.EPOCHS == -1:
     print("│  Running INFINTE Training Loop. Please stop the script manually.                                 \n│")
@@ -49,11 +48,16 @@ if __name__ == "__main__":
 
     # ========== Initialize the datamodule for pl.Trainer ==========
     # dm = MTDataModule(_config, dist=False)
-    dm = SmallMTDataModuleMETER(_config, dist=False, percentage=0.1)
-    dm.setup("")
+    dm = SmallMTDataModuleMETER(_config, dist=False, percentage=1)
+    dm.setup("train", is_random=True)
     train_dataloader = dm.train_dataloader()
     val_dataloader = dm.val_dataloader()
-    train_dataloader = dm.test_dataloader()
+    test_dataloader = dm.test_dataloader()
+
+    print("Dataloader Length: ", len(train_dataloader))
+    print("Dataloader Length: ", len(val_dataloader))
+    print("Dataloader Length: ", len(test_dataloader))
+
 
     # =============== Initialize Full Precision Model ==============
     model_teacher = METERTransformerSS(_config)
@@ -145,6 +149,7 @@ if __name__ == "__main__":
     dm = SmallMTDataModuleMETER(_config, dist=False, percentage=1)
     dm.setup("test", is_random=True)
     test_dataloader = dm.test_dataloader()
+    print("Dataloader Length: ", len(test_dataloader))
     model_quant.eval()
 
 

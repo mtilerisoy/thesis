@@ -28,8 +28,8 @@ print("┌───────────────────────�
 print("│                                                                                                        │")
 print(f"│  Running with: epochs={CLI.EPOCHS}, max_steps={CLI.MAX_STEPS}, learning_rate={CLI.LEARNING_RATE}    \n│")
 print(f"│  dataset={CLI.DATASET}, percentage={CLI.PERCENTAGE}, alpha_kd={CLI.ALPHA_KD}                        \n│")
-print(f"│  gpu={CLI.GPU}, kd_layer={CLI.KD_LAYER}, temperature={CLI.TEMPERATURE}                              \n│")
-print(f"│  log_dir={CLI.LOG_DIR},                                                                         \n  │")
+print(f"│  gpu={CLI.GPU}, kd_layer={CLI.KD_LAYER}, log_dir={CLI.LOG_DIR}                                      \n│")
+print(f"│                                                                                                     \n│")
 print("│                                                                                                        │")
 if CLI.EPOCHS == -1:
     print("│  Running INFINTE Training Loop. Please stop the script manually.                                 \n│")
@@ -45,8 +45,8 @@ if __name__ == "__main__":
 
     # ========== Initialize the datamodule for pl.Trainer ==========
     # dm = MTDataModule(_config, dist=False)
-    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=0.1)
-    dm.setup("", is_random=True)
+    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=1)
+    dm.setup("train", is_random=True)
     train_dataloader = dm.train_dataloader()
     val_dataloader = dm.val_dataloader()
     test_dataloader = dm.test_dataloader()
@@ -145,6 +145,7 @@ if __name__ == "__main__":
     dm = SmallMTDataModuleVILT(_config, dist=False, percentage=1)
     dm.setup("test", is_random=True)
     test_dataloader = dm.test_dataloader()
+    print("Dataloader Length: ", len(test_dataloader))
     model_quant.eval()
 
 

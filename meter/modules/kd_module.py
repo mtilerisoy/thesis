@@ -6,13 +6,12 @@ import pytorch_lightning as pl
 from meter.modules import meter_utils_kd as meter_utils
 
 class KDLightningModule(pl.LightningModule):
-    def __init__(self, student_model, teacher_model, alpha_kd=0.5, lr=2e-5, config=None, T=1.0, **kwargs):
+    def __init__(self, student_model, teacher_model, alpha_kd=0.5, lr=2e-5, config=None, **kwargs):
         super().__init__()
         self.student_model = student_model
         self.teacher_model = teacher_model
         self.alpha_kd = alpha_kd
         self.lr = lr
-        self.T = T
         self.kd_layer = kwargs.get("kd_layer", -1)
 
         print(f"Applying KD to Layer: {self.kd_layer}")
