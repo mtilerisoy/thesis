@@ -16,7 +16,7 @@ from meter.modules import METERTransformerSS
 from meter.datamodules.multitask_datamodule import MTDataModule
 from meter.modules.kd_module import KDLightningModule
 
-from quantization_utils import get_module_by_path, quantize_modules, freeze_except_layers, get_quantization_config
+from quantization_utils import SmallMTDataModuleMETER, quantize_modules, freeze_except_layers
 import configs
 from torchao.quantization.prototype.qat import Int8DynActInt4WeightQATQuantizer
 import run_meter_kd_config as CLI
@@ -48,7 +48,8 @@ if __name__ == "__main__":
     pl.seed_everything(_config["seed"])
 
     # ========== Initialize the datamodule for pl.Trainer ==========
-    dm = MTDataModule(_config, dist=False)
+    # dm = MTDataModule(_config, dist=False)
+    dm = SmallMTDataModuleMETER(_config, dist=False, percentage=0.1)
     dm.setup("")
     train_dataloader = dm.train_dataloader()
     val_dataloader = dm.val_dataloader()
@@ -114,16 +115,10 @@ if __name__ == "__main__":
         val_check_interval=_config["val_check_interval"],
     )
 
-    # Store the initial weights before training
-    fc2_weight = get_module_by_path(model_student, modules_to_train['layer_names'][-1]).weight.clone()
-    
     print("Starting Full Precision Training")
     # Train the model with the quantization-aware training (QAT) quantizer
     # trainer.fit(kd_model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
     trainer.fit(kd_model, train_dataloaders=train_dataloader)
-
-    # Store the weights after training before quantization
-    fc2_weight_after_qat = get_module_by_path(model_student, modules_to_train['layer_names'][-1]).weight.clone()
 
     # Quantize the model
     model_quant = quantize_modules(model_student, modules_to_train['layer_names'], 4)
@@ -147,7 +142,7 @@ if __name__ == "__main__":
 
     # Initalize the ood dataset
     _config = configs.meter_config_nlvr2_ood
-    dm = MTDataModule(_config, dist=False)
+    dm = SmallMTDataModuleMETER(_config, dist=False, percentage=1)
     dm.setup("test", is_random=True)
     test_dataloader = dm.test_dataloader()
     model_quant.eval()

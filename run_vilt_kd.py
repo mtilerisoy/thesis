@@ -36,14 +36,8 @@ if CLI.EPOCHS == -1:
 print("└─────────────────────────────────────────────────────────────────────────────────────────────────────┘")
 
 if __name__ == "__main__":
-    if CLI.DATASET == "nlvr2_ood":
-        _config = configs.vilt_config_nlvr2
-    elif CLI.DATASET == "nlvr2_id":
-        _config = configs.vilt_config_nlvr2_original
-    else:
-        raise ValueError(f"Unknown dataset: {CLI.DATASET}")
-    
     # ========== Update the configuration ==========
+    _config = configs.vilt_config_nlvr2_id
     _config["batch_size"] = 32
     _config["per_gpu_batchsize"] = 8
     _config = copy.deepcopy(_config)
@@ -51,7 +45,7 @@ if __name__ == "__main__":
 
     # ========== Initialize the datamodule for pl.Trainer ==========
     # dm = MTDataModule(_config, dist=False)
-    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=1)
+    dm = SmallMTDataModuleVILT(_config, dist=False, percentage=0.1)
     dm.setup("", is_random=True)
     train_dataloader = dm.train_dataloader()
     val_dataloader = dm.val_dataloader()

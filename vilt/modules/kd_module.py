@@ -64,11 +64,11 @@ class KDLightningModule(pl.LightningModule):
             self.teacher_fusion_feats_attn = out[:, 0]
 
         # Register hook on the last transformer block
-        self.student_model.transformer.blocks[self.kd_layer].register_forward_hook(student_hook_mlp)
-        self.teacher_model.transformer.blocks[self.kd_layer].register_forward_hook(teacher_hook_mlp)
+        # self.student_model.transformer.blocks[self.kd_layer].register_forward_hook(student_hook_mlp)
+        # self.teacher_model.transformer.blocks[self.kd_layer].register_forward_hook(teacher_hook_mlp)
 
-        self.student_model.transformer.blocks[self.kd_layer].attn.register_forward_hook(student_hook_mlp)
-        self.teacher_model.transformer.blocks[self.kd_layer].attn.register_forward_hook(teacher_hook_mlp)
+        # self.student_model.transformer.blocks[self.kd_layer].attn.register_forward_hook(student_hook_mlp)
+        # self.teacher_model.transformer.blocks[self.kd_layer].attn.register_forward_hook(teacher_hook_mlp)
 
         # Pooler Layers
         self.student_model.pooler.dense.register_forward_hook(student_hook_pooler)
@@ -179,16 +179,16 @@ class KDLightningModule(pl.LightningModule):
         self.student_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=1)
         self.student_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=2)
 
-        # Detach the teacher features to avoid backpropagating through it
-        teacher_feats_mlp = self.teacher_fusion_feats_mlp.detach()
+        # # Detach the teacher features to avoid backpropagating through it
+        # teacher_feats_mlp = self.teacher_fusion_feats_mlp.detach()
         teacher_feats_pooler = self.teacher_fusion_feats_pooler.detach()
 
         # Compute Cosine Similarity loss either for MLP or Pooler layer
         # kd_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_mlp, teacher_feats_mlp, dim=-1))
         kd_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_pooler, teacher_feats_pooler, dim=-1))
         
-        cls_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_mlp[:, 0], teacher_feats_mlp[:, 0], dim=-1))
-        # cls_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_pooler, teacher_feats_pooler, dim=-1))
+        # cls_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_mlp[:, 0], teacher_feats_mlp[:, 0], dim=-1))
+        cls_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_pooler, teacher_feats_pooler, dim=-1))
 
         return kd_loss, cls_loss
     

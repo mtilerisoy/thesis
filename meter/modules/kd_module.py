@@ -141,26 +141,12 @@ class KDLightningModule(pl.LightningModule):
         self.student_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=1)
         self.student_model.infer(batch, mask_text=False, mask_image=False, image_token_type_idx=2)
 
-        # if self.student_fusion_feats_mlp2 is None or self.teacher_fusion_feats_mlp2 is None:
-        #     raise RuntimeError("Fusion layer hooks did not capture outputs!")
-
         # Detach the teacher features to avoid backpropagating through it
         # teacher_feats_mlp2 = self.teacher_fusion_feats_mlp2.detach()
         # teacher_feats_mlp3 = self.teacher_fusion_feats_mlp3.detach()
         teacher_feats_pooler = self.teacher_fusion_feats_pooler.detach()
 
-        # Normalize the features before computing KD loss
-        # teacher_feats = F.normalize(teacher_feats, dim=-1)
-        # student_feats = F.normalize(self.student_fusion_feats, dim=-1)
-        # kd_loss = F.cosine_similarity(student_feats, teacher_feats, dim=-1).mean()
-
-        # Compute Mean Squared Error (MSE) loss
-        # kd_loss = F.mse_loss(self.student_fusion_feats, teacher_feats)
-        # kd_loss_mlp2 = -torch.mean(F.cosine_similarity(self.student_fusion_feats_mlp2, teacher_feats_mlp2, dim=-1))
-        # kd_loss_mlp3 = -torch.mean(F.cosine_similarity(self.student_fusion_feats_mlp3, teacher_feats_mlp3, dim=-1))
-        kd_loss_pooler = -torch.mean(F.cosine_similarity(self.student_fusion_feats_pooler, teacher_feats_pooler, dim=-1))
-        # kd_loss = (kd_loss_mlp2 + kd_loss_mlp3 + kd_loss_pooler)/3.0
-        kd_loss = kd_loss_pooler
+        kd_loss = -torch.mean(F.cosine_similarity(self.student_fusion_feats_pooler, teacher_feats_pooler, dim=-1))
 
         return kd_loss
     
