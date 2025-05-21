@@ -35,25 +35,21 @@ The structure of the codebase is as follows
     │   ├── utils/                      # Utility functions
     │   └── configs/                    # Configuration files for METER
     │
-    ├── data/                           # Dataset storage and annotations
-    │   ├── VQAv2/                      # Visual Question Answering v2 dataset
-    │   ├── NLVR2/                      # Natural Language for Visual Reasoning 2
-    │   └── VLUE/                       # VLUE benchmark data
+    ├── data/                           # VLUE benchmark annotations in json format
     │
     ├── experiments/                    # Experiment results and checkpoints
     │   ├── vilt/                       # ViLT experiment results
     │   └── meter/                      # METER experiment results
     │
-    ├── run_vilt.py                     # Script to run ViLT model
+    ├── run_vilt.py                     # Script to run ViLT model in FP32
     ├── run_vilt_ptq.py                 # Post-training quantization for ViLT
-    ├── run_vilt_kd.py                  # Knowledge distillation for ViLT
+    ├── run_vilt_kd.py                  # Knowledge distillation retrainign for ViLT
     ├── run_vilt_kd_config.py           # Configuration for ViLT knowledge distillation
     │
-    ├── run_meter.py                    # Script to run METER model
+    ├── run_meter.py                    # Script to run METER model FP32
     ├── run_meter_ptq.py                # Post-training quantization for METER
-    ├── run_meter_kd.py                 # Knowledge distillation for METER
+    ├── run_meter_kd.py                 # Knowledge distillation retrainign for METER
     ├── run_meter_kd_config.py          # Configuration for METER knowledge distillation
-    ├── run_meter_kd_multiple.sh        # Batch processing script for METER KD
     │
     ├── run_block_sensitivity.py        # Block sensitivity analysis script
     ├── assess_vqa.py                   # VQA assessment script
@@ -62,15 +58,15 @@ The structure of the codebase is as follows
     │
     ├── DATA.md                         # Instructions for dataset preparation
     ├── EVAL.md                         # Evaluation instructions
-    ├── EVAL_ViLT.md                    # ViLT-specific evaluation instructions
     ├── TRAIN.md                        # Training instructions
-    ├── README_ViLT.md                  # Original ViLT README
     ├── README.md                       # Main repository README
     ├── requirements.txt                # Python dependencies
-    ├── setup.py                        # Package installation script
-    └── LICENSE                         # Project license
+    └── setup.py                        # Package installation script
 
 Please note that model weights and data files not necessarliy have to be included under this root.
+
+## Environment Setup
+
 
 ## Dataset
 Please refer to the ```DATA.md``` file for instructions on how to download and prepare the datasets.
