@@ -14,12 +14,15 @@ example:
 python run_vilt.py with data_root=/data-4/users/mileriso/datasets/VQAv2/arrows num_gpus=1 num_nodes=1 per_gpu_batchsize=32 task_finetune_vqa_randaug test_only=True precision=32 load_path="/data-4/users/mileriso/models/vilt_vqa.ckpt"
 ```
 
-This script will generate 'result/vqa_submit_vilt_vqa.json'. Then you need to run the assessment script as follows:
+This script will generate 'result/vqa_submit_vilt_vqa_DATE.json'. Then you need to run the assessment script as follows:
 ```python
-python assess_vqa.py
+python assess_vqa.py model_name prediction_file_name
+
+example:
+python assess_vqa.py vilt vqa_submit_vilt_vqa_20250521_1007
 ```
 
-The output will shows the correct number of guesses as well as the accuracy.
+The prediction json file can be found under ```result/``` The output will shows the correct number of guesses as well as the accuracy.
 
 ### Evaluating NLVR2
 ```python
