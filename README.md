@@ -19,6 +19,11 @@ Put the weights under your root model folder.
 The structure of the codebase is as follows
 
     root
+    ├── custom_lib/                     # Custom source code scripts 
+    │   ├── ao/                         # Changed scripts for torchao library
+    │   ├── torch/                      # Changed scripts for torch library
+    │   ├── transformers/               # Changed scripts for transformers library
+    │
     ├── vilt/                           # ViLT model implementation and utilities
     │   ├── modules/                    # Core model architecture components
     │   ├── datasets/                   # Dataset loaders for ViLT
