@@ -66,6 +66,38 @@ The structure of the codebase is as follows
 Please note that model weights and data files not necessarliy have to be included under this root.
 
 ## Environment Setup
+1. Create and and activate the environment using python 3.10.12
+
+```python
+python3.10 -m venv .your-library-name
+
+deactivate
+
+source path/to/.your-library-name/bin/activate
+```
+
+2. Install the dependecies using the following command
+```python
+pip install -r requirements.txt
+```
+
+3. Copy the files under ```custom_lib/``` folder to the following directories:
+
+### Files Under custom_lib/ao/
+- ```GPTQ.py``` -> ```path/to/.your-library-name/lib/python3.10/site-packages/torchao/quantization/GPTQ.py```
+
+- ```fake_quantizer.py``` -> ```path/to/.your-library-name/lib/python3.10/site-packages/torchao/quantization/qat/fake_quantizer.py```
+
+- ```linear.py``` -> ```path/to/.your-library-name/lib/python3.10/site-packages/torchao/quantization/qat/linear.py```
+
+### Files Under custom_lib/torch/
+- ```linear.py``` -> ```path/to/.your-library-name/lib/python3.10/site-packages/torch/ao/nn/quantized/dynamic/modules/linear.py```
+
+- ```quantization_mappings.py``` -> ```path/to/.your-library-name/lib/python3.10/site-packages/torch/ao/quantization/quantization_mappings.py```
+
+### Files Under custom_lib/transformers/
+- ```modeling_bert.py``` -> ```path/to/.your-library-name/lib/python3.10/site-packages/transformers/models/bert/modeling_bert.py```
+
 
 
 ## Dataset
