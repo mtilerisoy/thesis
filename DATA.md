@@ -61,7 +61,7 @@ make_arrow(dataset_root_path, dataset_root_path/arrows_root)
 ```
 
 ## VLUE Benchmark
-The benchmar uses raw images from the [MaRVL Dataset](https://marvl-challenge.github.io). The images can be accessed by following this [link](https://marvl-challenge.github.io/download) and following the procedure on the website. The annotations (*.json files) can be found within the ```data/``` folder under the root of this repository and should be copied to the root of the VLUE dataset folder as descirbed in the folder structure.
+The [VLUE benchmark](https://vlue-benchmark.github.io/leaderboard.html) uses images from the [MaRVL Dataset](https://marvl-challenge.github.io). The images can be accessed by following this [link](https://marvl-challenge.github.io/download) and following the procedure on the website. The annotations (*.json files) can be found within the ```data/``` folder under the root of this repository and should be copied to the root of the VLUE dataset folder as descirbed in the folder structure.
 
 The folder structure should be as follows:
 
